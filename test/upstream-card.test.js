@@ -317,3 +317,16 @@ test('--no-stars keeps star counts off, so a star change does not change the out
   assert.equal(renderMarkdown(a, { stars: false }), renderMarkdown(b, { stars: false }));
   assert.ok(!renderSVG(a, { user: 'o', stars: false }).includes('★'));
 });
+
+test('the README workflow refreshes weekly and on demand, and examples/upstream-card.yml is the same file', () => {
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+  const block = readme.match(/```yaml\n(name: upstream-card[\s\S]*?)```/)?.[1];
+  assert.ok(block, 'README has the workflow example');
+  const cron = block.match(/cron: "([^"]+)"/)?.[1].split(' ');
+  assert.equal(cron?.length, 5, 'one five-field cron line');
+  const [min, hour, dom, mon, dow] = cron;
+  assert.ok(/^\d+$/.test(min) && /^\d+$/.test(hour), 'a fixed time of day');
+  assert.ok(dom === '*' && mon === '*' && /^[0-6]$/.test(dow), `weekly (one day of the week), got "${cron.join(' ')}"`);
+  assert.match(block, /\n  workflow_dispatch:/);
+  assert.equal(readFileSync(new URL('../examples/upstream-card.yml', import.meta.url), 'utf8'), block);
+});

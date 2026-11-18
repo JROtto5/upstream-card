@@ -21,8 +21,8 @@ Then add `.github/workflows/upstream-card.yml`:
 ```yaml
 name: upstream-card
 on:
-  schedule: [{ cron: "0 6 * * *" }]   # daily
-  workflow_dispatch:
+  schedule: [{ cron: "17 6 * * 1" }]   # weekly, Mondays 06:17 UTC; a card rarely needs fresher
+  workflow_dispatch:                    # and a "Run workflow" button for a refresh right now
 permissions:
   contents: write   # only to commit the refreshed card
 jobs:
@@ -44,6 +44,8 @@ jobs:
           git add -A
           git diff --cached --quiet || { git commit -m "upstream-card: refresh" && git push; }
 ```
+
+The workflow runs weekly by default: most profiles gain a merged PR every few weeks, not every hour, and a weekly run keeps your Actions minutes and GitHub's API budget for other things. Use the **Run workflow** button (Actions tab, `upstream-card`) to refresh right away after a merge, or change the cron line. The same file is in [`examples/upstream-card.yml`](examples/upstream-card.yml).
 
 upstream-card only rewrites a file when its content changed. A new merge changes it, and so does a change in a shown star count (exact below 1,000, in steps of 100 above). Add `--no-stars` (the Action's `no-stars: true`) if you want commits only when something merges. Pin the action to a commit SHA, as above, so a later change to this repository can't change what runs in yours.
 

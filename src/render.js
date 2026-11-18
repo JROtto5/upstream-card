@@ -17,9 +17,17 @@ export function escapeXml(s) {
   return String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]);
 }
 
+// Clip by code point, so an emoji at the boundary isn't cut in half.
 function clip(s, n) {
-  s = String(s);
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  const chars = Array.from(String(s));
+  return chars.length > n ? chars.slice(0, n - 1).join('') + '…' : chars.join('');
+}
+
+export function totalsLine(summary, { long = false } = {}) {
+  const m = summary.totalMerged;
+  const p = summary.totalProjects;
+  const prs = long ? `pull request${m === 1 ? '' : 's'}` : `PR${m === 1 ? '' : 's'}`;
+  return `${m} ${prs} merged into ${p} other project${p === 1 ? '' : 's'}`;
 }
 
 // Colour rules per theme. Plain class rules, not CSS variables: some SVG renderers (librsvg,
@@ -40,8 +48,8 @@ export function renderSVG(summary, { user, theme = 'auto', title } = {}) {
   const top = 78;
   const H = top + Math.max(rows.length, 1) * rowH + 40;
   const max = Math.max(1, ...rows.map((p) => p.merged));
-  const heading = title || `${user}'s upstream contributions`;
-  const sub = `${summary.totalMerged} PR${summary.totalMerged === 1 ? '' : 's'} merged into ${summary.totalProjects} other project${summary.totalProjects === 1 ? '' : 's'}`;
+  const heading = title || (user ? `${user}'s upstream contributions` : 'Upstream contributions');
+  const sub = totalsLine(summary);
   const lines = rows.map((p, i) => {
     const y = top + i * rowH;
     const barW = Math.round((p.merged / max) * 70);
@@ -79,7 +87,7 @@ ${lines.join('\n')}${empty}
 
 export function renderMarkdown(summary, { perProject = 3 } = {}) {
   const out = [];
-  out.push(`**${summary.totalMerged} pull requests merged into ${summary.totalProjects} other projects.**`, '');
+  out.push(`**${totalsLine(summary, { long: true })}.**`, '');
   for (const p of summary.allProjects) {
     const meta = [p.language, `★ ${formatStars(p.stars)}`].filter(Boolean).join(' · ');
     out.push(`- **[${p.repo}](https://github.com/${p.repo})** (${meta}): ${p.merged} merged`);
@@ -91,12 +99,16 @@ export function renderMarkdown(summary, { perProject = 3 } = {}) {
   return out.join('\n') + '\n';
 }
 
-// Replace the text between two marker comments in a README; append the block if the markers are missing.
+// Replace the text between two marker comments in a README. With neither marker present, the markers and the
+// block are appended at the end; with only one, or in the wrong order, it refuses rather than guess.
 export function injectBetweenMarkers(readme, block, name = 'upstream-card') {
   const start = `<!-- ${name}:start -->`;
   const end = `<!-- ${name}:end -->`;
   const i = readme.indexOf(start);
   const j = readme.indexOf(end);
-  if (i === -1 || j === -1 || j < i) return `${readme.replace(/\n*$/, '\n\n')}${start}\n${block}${end}\n`;
+  if ((i === -1) !== (j === -1) || (i !== -1 && j < i)) {
+    throw new Error(`the README needs both ${start} and ${end}, in that order`);
+  }
+  if (i === -1) return `${readme.replace(/\n*$/, '\n\n')}${start}\n${block}${end}\n`;
   return readme.slice(0, i + start.length) + '\n' + block + readme.slice(j);
 }

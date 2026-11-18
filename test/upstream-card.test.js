@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchQuery, fetchMergedPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml } from '../src/index.js';
+import { searchQuery, fetchMergedPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/upstream-card.js', import.meta.url));
 const SNAP = (name) => new URL(`./snapshots/${name}`, import.meta.url);
@@ -43,7 +43,7 @@ test('the search counts only merged PRs in other people\'s public repos', () => 
   assert.ok(searchQuery('octo', { from: '2026-01-01', to: '2026-02-01' }).includes('merged:2026-01-01..2026-02-01'));
 });
 
-test('checklist 1: pagination past 100 follows the cursor', async () => {
+test('pagination past 100 follows the cursor', async () => {
   const r = repo('acme/widgets');
   const page1 = Array.from({ length: 100 }, (_, i) => pr(i, r));
   const f = fakeGraphQL({ count: () => 105, pages: (q, after) => (after ? { nodes: [pr(100, r), pr(101, r)] } : { nodes: page1, next: 'c1' }) });
@@ -52,7 +52,7 @@ test('checklist 1: pagination past 100 follows the cursor', async () => {
   assert.equal(f.calls[0].auth, 'Bearer t');
 });
 
-test('checklist 1: past 1,000 results the date range is split until each window fits', async () => {
+test('past 1,000 results the date range is split until each window fits', async () => {
   // 1,600 results spread evenly over 2008-01-01..2026-11-18: every window over 1,000 must be halved.
   const span = (q) => {
     const m = q.match(/merged:(\S+)\.\.(\S+)/);
@@ -70,7 +70,7 @@ test('checklist 1: past 1,000 results the date range is split until each window 
   for (const [a, b] of w) assert.ok(span(`merged:${a}..${b}`) <= 1000);
 });
 
-test('checklist 2: private, deleted and own repos never leak; a renamed repo is one project', async () => {
+test('private, deleted and own repos never leak; a renamed repo is one project', async () => {
   const pub = repo('acme/widgets', { id: 7 });
   const renamed = repo('acme/gadgets', { id: 7 }); // same repository id: renamed after the earlier PR
   const priv = repo('work/secret', { id: 8, priv: true });
@@ -86,7 +86,7 @@ test('checklist 2: private, deleted and own repos never leak; a renamed repo is 
   assert.ok(!svg.includes('secret') && !svg.includes('octo/thing'));
 });
 
-test('checklist 3: hostile names and titles are escaped and the SVG is well-formed XML', (t) => {
+test('hostile names and titles are escaped and the SVG is well-formed XML', (t) => {
   const evil = repo('x/"><script>alert(1)</script>', { lang: 'Go' });
   const prs = [{ repo: evil.nameWithOwner, repoId: 1, number: 1, title: '</svg><img src=x onerror=alert(1)> & ]] [[', url: 'u', mergedAt: '2026-11-01', stars: 3, language: 'Go' }];
   const s = summarize(prs);
@@ -103,7 +103,7 @@ test('checklist 3: hostile names and titles are escaped and the SVG is well-form
   execFileSync('xmllint', ['--noout', join(dir, 'c.svg')]);
 });
 
-test('checklist 4: a second run with nothing new changes nothing', () => {
+test('a second run with nothing new changes nothing', () => {
   const dir = mkdtempSync(join(tmpdir(), 'uc-'));
   const json = join(dir, 's.json');
   writeFileSync(json, JSON.stringify(summarize(SAMPLE)));
@@ -131,7 +131,7 @@ test('dry run writes nothing', () => {
   assert.ok(!existsSync(join(dir, 'c.svg')));
 });
 
-test('checklist 5: no token fails clearly; a token is sent', async () => {
+test('no token fails clearly; a token is sent', async () => {
   await assert.rejects(fetchMergedPRs('octo', { fetchImpl: fakeGraphQL({ pages: () => ({ nodes: [] }) }) }), /GitHub token is required/);
   const r = spawnSync('node', [BIN, '--user', 'octo', '--svg', '/dev/null'], { encoding: 'utf8', env: { PATH: process.env.PATH } });
   assert.equal(r.status, 1);
@@ -145,7 +145,7 @@ test('an API error names the status, and GraphQL errors surface', async () => {
   await assert.rejects(fetchMergedPRs('octo', { token: 't', fetchImpl: err, now: NOW }), /Something broke/);
 });
 
-test('checklist 6: --since is a UTC date; bad dates are refused', async () => {
+test('--since is a UTC date; bad dates are refused', async () => {
   const f = fakeGraphQL({ count: () => 0, pages: () => ({ nodes: [] }) });
   await fetchMergedPRs('octo', { token: 't', fetchImpl: f, since: '2026-11-18', now: NOW });
   assert.ok(f.calls[0].variables.q.includes('merged:2026-11-18..2026-11-18'), 'same-day window includes the day itself');
@@ -156,7 +156,7 @@ test('checklist 6: --since is a UTC date; bad dates are refused', async () => {
   }
 });
 
-test('checklist 7: dark, light and auto cards match their snapshots', () => {
+test('dark, light and auto cards match their snapshots', () => {
   const s = summarize(SAMPLE, { exclude: ['work'] });
   for (const theme of ['dark', 'light', 'auto']) {
     const svg = renderSVG(s, { user: 'octo', theme });
@@ -215,4 +215,80 @@ test('injectBetweenMarkers replaces only the marked block', () => {
   assert.equal(injectBetweenMarkers(readme, 'new\n'), 'intro\n<!-- upstream-card:start -->\nnew\n<!-- upstream-card:end -->\noutro\n');
   const appended = injectBetweenMarkers('intro\n', 'new\n');
   assert.ok(appended.endsWith('<!-- upstream-card:start -->\nnew\n<!-- upstream-card:end -->\n'));
+});
+
+test('the installed bin works through an npm-style symlink with no .js suffix', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const link = join(dir, 'upstream-card');
+  symlinkSync(BIN, link);
+  const r = spawnSync('node', [link, '--help'], { encoding: 'utf8' });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /upstream-card: the pull requests/);
+});
+
+test('--from-json applies the filters and refuses a file that is not a summary', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const json = join(dir, 's.json');
+  writeFileSync(json, JSON.stringify(summarize(SAMPLE)));
+  const r = spawnSync('node', [BIN, '--from-json', json, '--svg', join(dir, 'c.svg'), '--top', '1', '--exclude', 'work,small'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const svg = readFileSync(join(dir, 'c.svg'), 'utf8');
+  assert.match(svg, /3 PRs merged into 2 other projects/);
+  assert.equal((svg.match(/class="repo"/g) || []).length, 1, '--top 1 shows one row');
+  writeFileSync(join(dir, 'bad.json'), '{"hello":1}');
+  const bad = spawnSync('node', [BIN, '--from-json', join(dir, 'bad.json')], { encoding: 'utf8' });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /not an upstream-card summary/);
+});
+
+test('a missing --readme fails before any file is written', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const json = join(dir, 's.json');
+  writeFileSync(json, JSON.stringify(summarize(SAMPLE)));
+  const r = spawnSync('node', [BIN, '--from-json', json, '--svg', join(dir, 'c.svg'), '--readme', join(dir, 'nope.md')], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /does not exist/);
+  assert.ok(!existsSync(join(dir, 'c.svg')));
+});
+
+test('when max is reached the newest PRs are kept and a warning says so', async () => {
+  // Two windows (the count says the whole range is too big); each holds 3 PRs.
+  const r = repo('acme/widgets');
+  const f = fakeGraphQL({
+    count: (q) => (q.includes('2008-01-01..2026-11-18') ? 2000 : 3),
+    pages: (q) => ({ nodes: q.includes('..2026-11-18') && !q.includes('2008-01-01') ? [pr(10, r, '2026-11-10T00:00:00Z'), pr(11, r, '2026-11-11T00:00:00Z'), pr(12, r, '2026-11-12T00:00:00Z')] : [pr(1, r, '2010-01-01T00:00:00Z'), pr(2, r, '2010-01-02T00:00:00Z'), pr(3, r, '2010-01-03T00:00:00Z')] }),
+  });
+  const warnings = [];
+  const prs = await fetchMergedPRs('octo', { token: 't', fetchImpl: f, now: NOW, max: 4, warn: (m) => warnings.push(m) });
+  assert.equal(prs.length, 4);
+  assert.deepEqual(prs.slice(0, 3).map((p) => p.number), [10, 11, 12], 'the newest window is read first');
+  assert.match(warnings.join(), /stopped at 4 merged PRs; older ones are left out/);
+});
+
+test('a single day over the search cap is reported, not silently cut', async () => {
+  const f = fakeGraphQL({ count: () => 1500, pages: () => ({ nodes: [] }) });
+  const warnings = [];
+  const w = await windows('octo', '2026-11-18', '2026-11-18', { token: 't', fetchImpl: f, warn: (m) => warnings.push(m) });
+  assert.deepEqual(w, [['2026-11-18', '2026-11-18']]);
+  assert.match(warnings.join(), /1500 merged PRs on 2026-11-18 alone/);
+});
+
+test('injectBetweenMarkers refuses a lone or reversed marker', () => {
+  assert.throws(() => injectBetweenMarkers('a\n<!-- upstream-card:start -->\nb\n', 'x\n'), /needs both/);
+  assert.throws(() => injectBetweenMarkers('<!-- upstream-card:end -->\n<!-- upstream-card:start -->\n', 'x\n'), /in that order/);
+});
+
+test('one PR reads as singular on the card and in markdown; no user gives a neutral heading', () => {
+  const s = summarize([SAMPLE[0]]);
+  assert.equal(totalsLine(s), '1 PR merged into 1 other project');
+  assert.ok(renderMarkdown(s).startsWith('**1 pull request merged into 1 other project.**'));
+  assert.ok(renderSVG(s).includes('>Upstream contributions<'));
+  assert.ok(!renderSVG(s).includes('undefined'));
+});
+
+test('long titles are clipped without splitting an emoji', () => {
+  const title = 'a'.repeat(98) + '🎉🎉🎉';
+  const md = renderMarkdown(summarize([{ ...SAMPLE[0], title }]));
+  assert.ok(!md.includes('�') && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(md), 'no lone surrogate');
+  assert.ok(md.includes('🎉…'));
 });

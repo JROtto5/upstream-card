@@ -50,7 +50,11 @@ const day = (d) => d.toISOString().slice(0, 10);
 // found by halving any window the search says is too big.
 export async function windows(user, from, to, opts) {
   const { search } = await graphql(COUNT, { q: searchQuery(user, { from, to }) }, opts);
-  if (search.issueCount <= SEARCH_CAP || from === to) return [[from, to]];
+  if (search.issueCount <= SEARCH_CAP) return [[from, to]];
+  if (from === to) {
+    (opts.warn || console.error)(`upstream-card: ${search.issueCount} merged PRs on ${from} alone; GitHub search returns at most ${SEARCH_CAP}, so that day is incomplete`);
+    return [[from, to]];
+  }
   const a = new Date(`${from}T00:00:00Z`).getTime();
   const b = new Date(`${to}T00:00:00Z`).getTime();
   const mid = new Date(a + Math.floor((b - a) / 86400e3 / 2) * 86400e3);
@@ -59,11 +63,14 @@ export async function windows(user, from, to, opts) {
 }
 
 // -> [{ repo, repoId, number, title, url, mergedAt, stars, language, owner, fork }]
-export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl = fetch, now = new Date() } = {}) {
-  const opts = { token, fetchImpl };
+// Windows are read newest first, so if `max` is reached it's the oldest PRs that are left out (with a warning).
+export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl = fetch, now = new Date(), warn = console.error } = {}) {
+  const opts = { token, fetchImpl, warn };
   const from = since || '2008-01-01'; // GitHub launched in 2008
-  const spans = await windows(user, from, day(now), opts);
+  const spans = (await windows(user, from, day(now), opts)).reverse();
   const out = [];
+  const seen = new Set();
+  let truncated = false;
   for (const [a, b] of spans) {
     let after = null;
     do {
@@ -73,6 +80,11 @@ export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl
         // A deleted repository comes back null; a private one never belongs on a public card.
         if (!n?.mergedAt || !r || r.isPrivate) continue;
         if (r.owner.login.toLowerCase() === user.toLowerCase()) continue;
+        // Window edges and retries could repeat a node; count each PR once.
+        const key = `${r.databaseId}#${n.number}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (out.length >= max) { truncated = true; break; }
         out.push({
           repo: r.nameWithOwner, // current name, so a renamed or transferred repo shows as it is today
           repoId: r.databaseId,
@@ -86,16 +98,10 @@ export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl
           fork: !!r.isFork,
         });
       }
-      after = search.pageInfo.hasNextPage ? search.pageInfo.endCursor : null;
-    } while (after && out.length < max);
-    if (out.length >= max) break;
+      after = search.pageInfo.hasNextPage && !truncated ? search.pageInfo.endCursor : null;
+    } while (after);
+    if (truncated) break;
   }
-  // The same PR can't appear twice, but window edges and retries could repeat a node.
-  const seen = new Set();
-  return out.filter((p) => {
-    const k = `${p.repoId}#${p.number}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  }).slice(0, max);
+  if (truncated) warn(`upstream-card: stopped at ${max} merged PRs; older ones are left out`);
+  return out;
 }

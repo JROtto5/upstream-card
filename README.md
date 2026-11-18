@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: JROtto5/upstream-card@SHA_PLACEHOLDER # v0.1.0
+      - uses: JROtto5/upstream-card@f704bff676ba802867308f3a1abd67850c09cc6e # v0.1.0
         with:
           theme: auto            # follows the viewer's light/dark setting; or dark / light
           top: 6                 # projects on the card

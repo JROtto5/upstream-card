@@ -12,19 +12,31 @@ inputs:
     description: Path of the SVG card to write
     default: upstream-card.svg
   theme:
-    description: dark or light
-    default: dark
+    description: auto (follows the viewer's light/dark setting), dark or light
+    default: auto
   top:
     description: Projects shown on the card
     default: "6"
   exclude:
     description: Comma-separated owners or owner/repo to leave out
     default: ""
+  min-stars:
+    description: Leave out projects with fewer stars
+    default: "0"
+  exclude-forks:
+    description: "true to leave out projects that are themselves forks"
+    default: "false"
+  since:
+    description: Only PRs merged on or after this date (YYYY-MM-DD, UTC)
+    default: ""
   readme:
     description: README to update between <!-- upstream-card:start --> and <!-- upstream-card:end --> (empty to skip)
     default: ""
+  dry-run:
+    description: "true to print what would change and write nothing"
+    default: "false"
   token:
-    description: Token for the GitHub API (only public data is read)
+    description: Token for the GitHub API (only public data is read; the default Actions token works)
     default: ${{ github.token }}
 runs:
   using: composite
@@ -37,9 +49,17 @@ runs:
         UC_THEME: ${{ inputs.theme }}
         UC_TOP: ${{ inputs.top }}
         UC_EXCLUDE: ${{ inputs.exclude }}
+        UC_MIN_STARS: ${{ inputs.min-stars }}
+        UC_EXCLUDE_FORKS: ${{ inputs.exclude-forks }}
+        UC_SINCE: ${{ inputs.since }}
         UC_README: ${{ inputs.readme }}
+        UC_DRY: ${{ inputs.dry-run }}
+        UC_BIN: ${{ github.action_path }}/bin/upstream-card.js
       run: |
-        args=(--user "$UC_USER" --svg "$UC_SVG" --theme "$UC_THEME" --top "$UC_TOP")
+        args=(--user "$UC_USER" --svg "$UC_SVG" --theme "$UC_THEME" --top "$UC_TOP" --min-stars "$UC_MIN_STARS")
         [ -n "$UC_EXCLUDE" ] && args+=(--exclude "$UC_EXCLUDE")
+        [ -n "$UC_SINCE" ] && args+=(--since "$UC_SINCE")
         [ -n "$UC_README" ] && args+=(--readme "$UC_README")
-        node "${{ github.action_path }}/bin/upstream-card.js" "${args[@]}"
+        [ "$UC_EXCLUDE_FORKS" = "true" ] && args+=(--exclude-forks)
+        [ "$UC_DRY" = "true" ] && args+=(--dry-run)
+        node "$UC_BIN" "${args[@]}"

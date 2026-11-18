@@ -1,39 +1,59 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from 'node:fs';
-import { fetchMergedPRs, fetchRepoInfo, summarize, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { fetchMergedPRs, summarize, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
 
 const HELP = `upstream-card: the pull requests you got merged into other people's projects
 
 Usage: upstream-card --user <login> [options]
 
-  --user <login>        GitHub user (required)
-  --svg <file>          write the SVG card here (default: upstream-card.svg)
-  --theme dark|light    card theme (default: dark)
-  --title <text>        card heading
-  --top <n>             projects on the card (default: 6)
-  --exclude <list>      comma-separated owners or owner/repo to leave out
-  --since <YYYY-MM-DD>  only PRs merged on or after this date
-  --md <file>           also write a markdown list of every project and PR
-  --readme <file>       put the markdown list between <!-- upstream-card:start --> and :end --> in this file
-  --json <file>         also write the raw summary as JSON
-  --from-json <file>    render from a saved JSON summary instead of calling GitHub (offline)
+  --user <login>          GitHub user (required)
+  --svg <file>            write the SVG card here (default: upstream-card.svg)
+  --theme auto|dark|light card theme; auto follows the viewer's setting (default: auto)
+  --title <text>          card heading
+  --top <n>               projects on the card (default: 6)
+  --exclude <list>        comma-separated owners or owner/repo to leave out (--exclude-orgs is the same)
+  --min-stars <n>         leave out projects with fewer stars
+  --exclude-forks         leave out projects that are themselves forks
+  --since <YYYY-MM-DD>    only PRs merged on or after this date (UTC)
+  --md <file>             also write a markdown list of every project and PR
+  --readme <file>         put the markdown list between <!-- upstream-card:start --> and :end --> in this file
+  --json <file>           also write the summary as JSON
+  --from-json <file>      render from a saved JSON summary instead of calling GitHub (offline)
+  --dry-run               print what would change; write nothing
 
-A token in GITHUB_TOKEN or GH_TOKEN raises the API rate limit. Only public repositories are counted.
+Needs a token in GITHUB_TOKEN or GH_TOKEN (the default Actions token works). Only public repositories are counted.
 `;
 
-function parse(argv) {
+const FLAGS = new Set(['help', 'dry-run', 'exclude-forks']);
+
+export function parse(argv) {
   const a = {};
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
-    if (k === '-h' || k === '--help') a.help = true;
-    else if (k.startsWith('--')) {
-      const v = argv[i + 1];
-      if (v === undefined || v.startsWith('--')) throw new Error(`${k} needs a value`);
-      a[k.slice(2)] = v;
-      i++;
-    } else throw new Error(`unexpected argument: ${k}`);
+    if (k === '-h') { a.help = true; continue; }
+    if (!k.startsWith('--')) throw new Error(`unexpected argument: ${k}`);
+    const name = k.slice(2);
+    if (FLAGS.has(name)) { a[name] = true; continue; }
+    const v = argv[i + 1];
+    if (v === undefined || v.startsWith('--')) throw new Error(`${k} needs a value`);
+    a[name] = v;
+    i++;
   }
   return a;
+}
+
+function wholeNumber(v, name, min) {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < min) throw new Error(`${name} must be a whole number of at least ${min}`);
+  return n;
+}
+
+// Write only when the content changed, so a scheduled run with nothing new makes no commit.
+function put(file, content, dry, log) {
+  const old = existsSync(file) ? readFileSync(file, 'utf8') : null;
+  if (old === content) { log.push(`unchanged ${file}`); return; }
+  log.push(`${old === null ? 'create' : 'update'} ${file}`);
+  if (!dry) writeFileSync(file, content);
 }
 
 async function main() {
@@ -42,31 +62,36 @@ async function main() {
     process.stdout.write(HELP);
     return a.help ? 0 : 2;
   }
-  const top = a.top ? Number(a.top) : 6;
-  if (!Number.isInteger(top) || top < 1) throw new Error('--top must be a positive whole number');
+  const top = a.top ? wholeNumber(a.top, '--top', 1) : 6;
+  const minStars = a['min-stars'] ? wholeNumber(a['min-stars'], '--min-stars', 0) : 0;
+  if (a.since && (!/^\d{4}-\d{2}-\d{2}$/.test(a.since) || Number.isNaN(Date.parse(`${a.since}T00:00:00Z`)))) {
+    throw new Error('--since must be a date like 2026-01-31');
+  }
   let summary;
   if (a['from-json']) {
     summary = JSON.parse(readFileSync(a['from-json'], 'utf8'));
   } else {
     const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
     const prs = await fetchMergedPRs(a.user, { token, since: a.since });
-    const exclude = (a.exclude || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const repos = [...new Set(prs.map((p) => p.repo))];
-    const info = await fetchRepoInfo(repos, { token });
-    summary = summarize(prs, info, { exclude, top });
+    const exclude = [a.exclude, a['exclude-orgs']].filter(Boolean).join(',').split(',').map((s) => s.trim()).filter(Boolean);
+    summary = summarize(prs, { exclude, minStars, excludeForks: !!a['exclude-forks'], top });
   }
   const user = a.user || summary.user || 'you';
   summary.user = user;
-  writeFileSync(a.svg || 'upstream-card.svg', renderSVG(summary, { user, theme: a.theme, title: a.title }));
+  const dry = !!a['dry-run'];
+  const log = [];
+  put(a.svg || 'upstream-card.svg', renderSVG(summary, { user, theme: a.theme, title: a.title }), dry, log);
   const md = renderMarkdown(summary);
-  if (a.md) writeFileSync(a.md, md);
-  if (a.readme) writeFileSync(a.readme, injectBetweenMarkers(readFileSync(a.readme, 'utf8'), md));
-  if (a.json) writeFileSync(a.json, JSON.stringify(summary, null, 2) + '\n');
-  process.stderr.write(`upstream-card: ${summary.totalMerged} merged PRs in ${summary.totalProjects} projects\n`);
+  if (a.md) put(a.md, md, dry, log);
+  if (a.readme) put(a.readme, injectBetweenMarkers(readFileSync(a.readme, 'utf8'), md), dry, log);
+  if (a.json) put(a.json, JSON.stringify(summary, null, 2) + '\n', dry, log);
+  process.stderr.write(`upstream-card: ${summary.totalMerged} merged PRs in ${summary.totalProjects} projects${dry ? ' (dry run, nothing written)' : ''}\n${log.map((l) => `  ${l}`).join('\n')}\n`);
   return 0;
 }
 
-main().then((code) => process.exit(code), (e) => {
-  process.stderr.write(`upstream-card: ${e.message}\n`);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('upstream-card.js')) {
+  main().then((code) => process.exit(code), (e) => {
+    process.stderr.write(`upstream-card: ${e.message}\n`);
+    process.exit(1);
+  });
+}

@@ -22,8 +22,18 @@ function clip(s, n) {
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
 
-export function renderSVG(summary, { user, theme = 'dark', title } = {}) {
-  const t = THEMES[theme] || THEMES.dark;
+// Colour rules per theme. Plain class rules, not CSS variables: some SVG renderers (librsvg,
+// image proxies) ignore var(), and the card would come out black.
+function colours(t) {
+  return `.h,.count{fill:${t.title}}.sub{fill:${t.accent}}.repo{fill:${t.text}}.muted{fill:${t.muted}}.card{fill:${t.bg};stroke:${t.border}}.bar{fill:${t.bar}}`;
+}
+
+// theme: 'auto' follows the viewer's light/dark setting (prefers-color-scheme); 'dark' or 'light' fixes it.
+export function renderSVG(summary, { user, theme = 'auto', title } = {}) {
+  if (!['auto', 'dark', 'light'].includes(theme)) throw new Error(`unknown theme "${theme}": use auto, dark or light`);
+  const palette = theme === 'auto'
+    ? `${colours(THEMES.light)}\n@media (prefers-color-scheme: dark){${colours(THEMES.dark)}}`
+    : colours(theme === 'light' ? THEMES.light : THEMES.dark);
   const rows = summary.projects;
   const W = 495;
   const rowH = 26;
@@ -35,13 +45,13 @@ export function renderSVG(summary, { user, theme = 'dark', title } = {}) {
   const lines = rows.map((p, i) => {
     const y = top + i * rowH;
     const barW = Math.round((p.merged / max) * 70);
-    const dot = LANG[p.language] || t.muted;
+    const dot = LANG[p.language] || '#8b949e';
     return [
       `<g transform="translate(24,${y})">`,
       `<circle cx="5" cy="-4" r="5" fill="${dot}"/>`,
       `<text x="18" y="0" class="repo">${escapeXml(clip(p.repo, 34))}</text>`,
       `<text x="300" y="0" class="muted" text-anchor="end">★ ${formatStars(p.stars)}</text>`,
-      `<rect x="320" y="-11" width="${barW}" height="10" rx="3" fill="${t.bar}"/>`,
+      `<rect x="320" y="-11" width="${barW}" height="10" rx="3" class="bar"/>`,
       `<text x="447" y="0" class="count" text-anchor="end">${p.merged}</text>`,
       `</g>`,
     ].join('');
@@ -52,13 +62,13 @@ export function renderSVG(summary, { user, theme = 'dark', title } = {}) {
 <title>${escapeXml(heading)}: ${escapeXml(sub)}</title>
 <style>
 text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
-.h{font-size:17px;font-weight:600;fill:${t.title}}
-.sub{font-size:12px;fill:${t.accent}}
-.repo{font-size:13px;fill:${t.text}}
-.muted{font-size:12px;fill:${t.muted}}
-.count{font-size:13px;font-weight:600;fill:${t.title}}
+.h{font-size:17px;font-weight:600}
+.sub,.muted{font-size:12px}
+.repo{font-size:13px}
+.count{font-size:13px;font-weight:600}
+${palette}
 </style>
-<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="6" fill="${t.bg}" stroke="${t.border}"/>
+<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="6" class="card"/>
 <text x="24" y="32" class="h">${escapeXml(clip(heading, 48))}</text>
 <text x="24" y="52" class="sub">${escapeXml(sub)}</text>
 ${lines.join('\n')}${empty}
@@ -74,7 +84,7 @@ export function renderMarkdown(summary, { perProject = 3 } = {}) {
     const meta = [p.language, `★ ${formatStars(p.stars)}`].filter(Boolean).join(' · ');
     out.push(`- **[${p.repo}](https://github.com/${p.repo})** (${meta}): ${p.merged} merged`);
     for (const pr of p.prs.slice(0, perProject)) {
-      out.push(`  - [${pr.title.replace(/[[\]]/g, '')}](${pr.url}) (${String(pr.mergedAt).slice(0, 10)})`);
+      out.push(`  - [${clip(pr.title, 100).replace(/[[\]<>]/g, '')}](${pr.url}) (${String(pr.mergedAt).slice(0, 10)})`);
     }
     if (p.prs.length > perProject) out.push(`  - and ${p.prs.length - perProject} more`);
   }

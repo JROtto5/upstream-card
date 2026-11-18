@@ -29,56 +29,92 @@
       "merged": 7,
       "stars": 3576,
       "language": "JavaScript",
+      "first": "2026-11-06T07:19:07Z",
       "last": "2026-11-17T13:38:12Z",
       "prs": [
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 983,
           "title": "PointsBVH, LineBVH: Scale the raycast threshold by the world scale on r188+",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/983",
-          "mergedAt": "2026-11-17T13:38:12Z"
+          "mergedAt": "2026-11-17T13:38:12Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 982,
           "title": "BVHComputeData: Add \"oct16\" and \"2x16float\" packed attribute types",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/982",
-          "mergedAt": "2026-11-13T00:25:29Z"
+          "mergedAt": "2026-11-13T00:25:29Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 980,
           "title": "BVHComputeData: Pack the index and attributes into one geometry buffer, add getTriangleIndices",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/980",
-          "mergedAt": "2026-11-12T04:02:15Z"
+          "mergedAt": "2026-11-12T04:02:15Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 969,
           "title": "BVHComputeData: Pack vertex attributes tightly and add getVertex",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/969",
-          "mergedAt": "2026-11-11T06:02:52Z"
+          "mergedAt": "2026-11-11T06:02:52Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 963,
           "title": "Workers: Reject a failed parallel build instead of leaving it pending",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/963",
-          "mergedAt": "2026-11-10T09:49:01Z"
+          "mergedAt": "2026-11-10T09:49:01Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 958,
           "title": "BVHComputeData: Copy attributes from the backing array when packing geometry",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/958",
-          "mergedAt": "2026-11-10T04:23:17Z"
+          "mergedAt": "2026-11-10T04:23:17Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 956,
           "title": "WebGPU: Unproject camera rays in camera space to keep precision far from the origin",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/956",
-          "mergedAt": "2026-11-06T07:19:07Z"
+          "mergedAt": "2026-11-06T07:19:07Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         }
       ]
     },
@@ -87,28 +123,44 @@
       "merged": 3,
       "stars": 10402,
       "language": "Python",
+      "first": "2026-11-07T19:13:38Z",
       "last": "2026-11-12T22:08:19Z",
       "prs": [
         {
           "repo": "lutris/lutris",
+          "repoId": 13419223,
           "number": 7010,
           "title": "fix(wine): keep the Templates folder in desktop integration",
           "url": "https://github.com/lutris/lutris/pull/7010",
-          "mergedAt": "2026-11-12T22:08:19Z"
+          "mergedAt": "2026-11-12T22:08:19Z",
+          "stars": 10402,
+          "language": "Python",
+          "owner": "lutris",
+          "fork": false
         },
         {
           "repo": "lutris/lutris",
+          "repoId": 13419223,
           "number": 7006,
           "title": "fix(po): repair the Pango markup in five translations",
           "url": "https://github.com/lutris/lutris/pull/7006",
-          "mergedAt": "2026-11-07T22:38:08Z"
+          "mergedAt": "2026-11-07T22:38:08Z",
+          "stars": 10402,
+          "language": "Python",
+          "owner": "lutris",
+          "fork": false
         },
         {
           "repo": "lutris/lutris",
+          "repoId": 13419223,
           "number": 7004,
           "title": "fix(wine): don't move a plain Wine prefix to Proton on fallback",
           "url": "https://github.com/lutris/lutris/pull/7004",
-          "mergedAt": "2026-11-07T19:13:38Z"
+          "mergedAt": "2026-11-07T19:13:38Z",
+          "stars": 10402,
+          "language": "Python",
+          "owner": "lutris",
+          "fork": false
         }
       ]
     },
@@ -117,14 +169,20 @@
       "merged": 1,
       "stars": 12126,
       "language": "TypeScript",
+      "first": "2026-11-16T12:28:26Z",
       "last": "2026-11-16T12:28:26Z",
       "prs": [
         {
           "repo": "maplibre/maplibre-gl-js",
+          "repoId": 319779344,
           "number": 9009,
           "title": "fix: draw the text halo in a separate pass for cursive scripts",
           "url": "https://github.com/maplibre/maplibre-gl-js/pull/9009",
-          "mergedAt": "2026-11-16T12:28:26Z"
+          "mergedAt": "2026-11-16T12:28:26Z",
+          "stars": 12126,
+          "language": "TypeScript",
+          "owner": "maplibre",
+          "fork": false
         }
       ]
     },
@@ -133,14 +191,20 @@
       "merged": 1,
       "stars": 9251,
       "language": "C",
+      "first": "2026-11-05T18:21:21Z",
       "last": "2026-11-05T18:21:21Z",
       "prs": [
         {
           "repo": "flightlessmango/MangoHud",
+          "repoId": 236648333,
           "number": 2198,
           "title": "cpu: add cpu_max_core_load to show the busiest core's load",
           "url": "https://github.com/flightlessmango/MangoHud/pull/2198",
-          "mergedAt": "2026-11-05T18:21:21Z"
+          "mergedAt": "2026-11-05T18:21:21Z",
+          "stars": 9251,
+          "language": "C",
+          "owner": "flightlessmango",
+          "fork": false
         }
       ]
     },
@@ -149,14 +213,20 @@
       "merged": 1,
       "stars": 7561,
       "language": "TypeScript",
+      "first": "2026-11-10T19:30:27Z",
       "last": "2026-11-10T19:30:27Z",
       "prs": [
         {
           "repo": "colyseus/colyseus",
+          "repoId": 46684632,
           "number": 1001,
           "title": "fix(core): don't report a room as full when its seat reservation fails",
           "url": "https://github.com/colyseus/colyseus/pull/1001",
-          "mergedAt": "2026-11-10T19:30:27Z"
+          "mergedAt": "2026-11-10T19:30:27Z",
+          "stars": 7561,
+          "language": "TypeScript",
+          "owner": "colyseus",
+          "fork": false
         }
       ]
     },
@@ -165,14 +235,20 @@
       "merged": 1,
       "stars": 2287,
       "language": "Elixir",
+      "first": "2026-11-13T17:16:56Z",
       "last": "2026-11-13T17:16:56Z",
       "prs": [
         {
           "repo": "supabase/supavisor",
+          "repoId": 588226575,
           "number": 1273,
           "title": "fix: send a NOTICE for startup options that aren't forwarded to the database",
           "url": "https://github.com/supabase/supavisor/pull/1273",
-          "mergedAt": "2026-11-13T17:16:56Z"
+          "mergedAt": "2026-11-13T17:16:56Z",
+          "stars": 2287,
+          "language": "Elixir",
+          "owner": "supabase",
+          "fork": false
         }
       ]
     }
@@ -183,56 +259,92 @@
       "merged": 7,
       "stars": 3576,
       "language": "JavaScript",
+      "first": "2026-11-06T07:19:07Z",
       "last": "2026-11-17T13:38:12Z",
       "prs": [
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 983,
           "title": "PointsBVH, LineBVH: Scale the raycast threshold by the world scale on r188+",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/983",
-          "mergedAt": "2026-11-17T13:38:12Z"
+          "mergedAt": "2026-11-17T13:38:12Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 982,
           "title": "BVHComputeData: Add \"oct16\" and \"2x16float\" packed attribute types",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/982",
-          "mergedAt": "2026-11-13T00:25:29Z"
+          "mergedAt": "2026-11-13T00:25:29Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 980,
           "title": "BVHComputeData: Pack the index and attributes into one geometry buffer, add getTriangleIndices",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/980",
-          "mergedAt": "2026-11-12T04:02:15Z"
+          "mergedAt": "2026-11-12T04:02:15Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 969,
           "title": "BVHComputeData: Pack vertex attributes tightly and add getVertex",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/969",
-          "mergedAt": "2026-11-11T06:02:52Z"
+          "mergedAt": "2026-11-11T06:02:52Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 963,
           "title": "Workers: Reject a failed parallel build instead of leaving it pending",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/963",
-          "mergedAt": "2026-11-10T09:49:01Z"
+          "mergedAt": "2026-11-10T09:49:01Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 958,
           "title": "BVHComputeData: Copy attributes from the backing array when packing geometry",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/958",
-          "mergedAt": "2026-11-10T04:23:17Z"
+          "mergedAt": "2026-11-10T04:23:17Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         },
         {
           "repo": "gkjohnson/three-mesh-bvh",
+          "repoId": 118064695,
           "number": 956,
           "title": "WebGPU: Unproject camera rays in camera space to keep precision far from the origin",
           "url": "https://github.com/gkjohnson/three-mesh-bvh/pull/956",
-          "mergedAt": "2026-11-06T07:19:07Z"
+          "mergedAt": "2026-11-06T07:19:07Z",
+          "stars": 3576,
+          "language": "JavaScript",
+          "owner": "gkjohnson",
+          "fork": false
         }
       ]
     },
@@ -241,28 +353,44 @@
       "merged": 3,
       "stars": 10402,
       "language": "Python",
+      "first": "2026-11-07T19:13:38Z",
       "last": "2026-11-12T22:08:19Z",
       "prs": [
         {
           "repo": "lutris/lutris",
+          "repoId": 13419223,
           "number": 7010,
           "title": "fix(wine): keep the Templates folder in desktop integration",
           "url": "https://github.com/lutris/lutris/pull/7010",
-          "mergedAt": "2026-11-12T22:08:19Z"
+          "mergedAt": "2026-11-12T22:08:19Z",
+          "stars": 10402,
+          "language": "Python",
+          "owner": "lutris",
+          "fork": false
         },
         {
           "repo": "lutris/lutris",
+          "repoId": 13419223,
           "number": 7006,
           "title": "fix(po): repair the Pango markup in five translations",
           "url": "https://github.com/lutris/lutris/pull/7006",
-          "mergedAt": "2026-11-07T22:38:08Z"
+          "mergedAt": "2026-11-07T22:38:08Z",
+          "stars": 10402,
+          "language": "Python",
+          "owner": "lutris",
+          "fork": false
         },
         {
           "repo": "lutris/lutris",
+          "repoId": 13419223,
           "number": 7004,
           "title": "fix(wine): don't move a plain Wine prefix to Proton on fallback",
           "url": "https://github.com/lutris/lutris/pull/7004",
-          "mergedAt": "2026-11-07T19:13:38Z"
+          "mergedAt": "2026-11-07T19:13:38Z",
+          "stars": 10402,
+          "language": "Python",
+          "owner": "lutris",
+          "fork": false
         }
       ]
     },
@@ -271,14 +399,20 @@
       "merged": 1,
       "stars": 12126,
       "language": "TypeScript",
+      "first": "2026-11-16T12:28:26Z",
       "last": "2026-11-16T12:28:26Z",
       "prs": [
         {
           "repo": "maplibre/maplibre-gl-js",
+          "repoId": 319779344,
           "number": 9009,
           "title": "fix: draw the text halo in a separate pass for cursive scripts",
           "url": "https://github.com/maplibre/maplibre-gl-js/pull/9009",
-          "mergedAt": "2026-11-16T12:28:26Z"
+          "mergedAt": "2026-11-16T12:28:26Z",
+          "stars": 12126,
+          "language": "TypeScript",
+          "owner": "maplibre",
+          "fork": false
         }
       ]
     },
@@ -287,14 +421,20 @@
       "merged": 1,
       "stars": 9251,
       "language": "C",
+      "first": "2026-11-05T18:21:21Z",
       "last": "2026-11-05T18:21:21Z",
       "prs": [
         {
           "repo": "flightlessmango/MangoHud",
+          "repoId": 236648333,
           "number": 2198,
           "title": "cpu: add cpu_max_core_load to show the busiest core's load",
           "url": "https://github.com/flightlessmango/MangoHud/pull/2198",
-          "mergedAt": "2026-11-05T18:21:21Z"
+          "mergedAt": "2026-11-05T18:21:21Z",
+          "stars": 9251,
+          "language": "C",
+          "owner": "flightlessmango",
+          "fork": false
         }
       ]
     },
@@ -303,14 +443,20 @@
       "merged": 1,
       "stars": 7561,
       "language": "TypeScript",
+      "first": "2026-11-10T19:30:27Z",
       "last": "2026-11-10T19:30:27Z",
       "prs": [
         {
           "repo": "colyseus/colyseus",
+          "repoId": 46684632,
           "number": 1001,
           "title": "fix(core): don't report a room as full when its seat reservation fails",
           "url": "https://github.com/colyseus/colyseus/pull/1001",
-          "mergedAt": "2026-11-10T19:30:27Z"
+          "mergedAt": "2026-11-10T19:30:27Z",
+          "stars": 7561,
+          "language": "TypeScript",
+          "owner": "colyseus",
+          "fork": false
         }
       ]
     },
@@ -319,14 +465,20 @@
       "merged": 1,
       "stars": 2287,
       "language": "Elixir",
+      "first": "2026-11-13T17:16:56Z",
       "last": "2026-11-13T17:16:56Z",
       "prs": [
         {
           "repo": "supabase/supavisor",
+          "repoId": 588226575,
           "number": 1273,
           "title": "fix: send a NOTICE for startup options that aren't forwarded to the database",
           "url": "https://github.com/supabase/supavisor/pull/1273",
-          "mergedAt": "2026-11-13T17:16:56Z"
+          "mergedAt": "2026-11-13T17:16:56Z",
+          "stars": 2287,
+          "language": "Elixir",
+          "owner": "supabase",
+          "fork": false
         }
       ]
     }

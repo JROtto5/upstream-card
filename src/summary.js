@@ -1,26 +1,31 @@
-// Group merged PRs by project and rank the projects.
+// Group merged PRs by project, apply the filters, and rank the projects.
 
-export function summarize(prs, info = {}, { exclude = [], top = 6 } = {}) {
+export function summarize(prs, { exclude = [], minStars = 0, excludeForks = false, top = 6 } = {}) {
   const skip = exclude.map((s) => s.toLowerCase());
-  const excluded = (repo) => {
-    const r = repo.toLowerCase();
+  const excluded = (pr) => {
+    const r = pr.repo.toLowerCase();
     const owner = r.split('/')[0];
-    return skip.some((s) => (s.includes('/') ? r === s : owner === s));
+    if (skip.some((s) => (s.includes('/') ? r === s : owner === s))) return true;
+    if ((pr.stars ?? 0) < minStars) return true;
+    return excludeForks && pr.fork;
   };
+  // Group by repository id, so a repo renamed between two PRs is still one project.
   const byRepo = new Map();
   for (const pr of prs) {
-    if (excluded(pr.repo)) continue;
-    if (!byRepo.has(pr.repo)) byRepo.set(pr.repo, []);
-    byRepo.get(pr.repo).push(pr);
+    if (excluded(pr)) continue;
+    const key = pr.repoId ?? pr.repo;
+    if (!byRepo.has(key)) byRepo.set(key, []);
+    byRepo.get(key).push(pr);
   }
-  const projects = [...byRepo.entries()].map(([repo, list]) => {
+  const projects = [...byRepo.values()].map((list) => {
     list.sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
-    const i = info[repo] || {};
+    const first = [...list].sort((a, b) => String(a.mergedAt).localeCompare(String(b.mergedAt)))[0];
     return {
-      repo,
+      repo: list[0].repo,
       merged: list.length,
-      stars: i.stars ?? 0,
-      language: i.language ?? null,
+      stars: list[0].stars ?? 0,
+      language: list[0].language ?? null,
+      first: first.mergedAt,
       last: list[0].mergedAt,
       prs: list,
     };

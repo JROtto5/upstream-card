@@ -15,9 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - run: sudo apt-get install -y --no-install-recommends libxml2-utils >/dev/null
       - run: npm test
       - name: Render the example card offline
-        run: node bin/upstream-card.js --from-json examples/JROtto5.json --svg /tmp/card.svg && grep -q "<svg" /tmp/card.svg
+        run: node bin/upstream-card.js --from-json examples/JROtto5.json --svg /tmp/card.svg && grep -q "<svg" /tmp/card.svg && node bin/upstream-card.js --from-json examples/JROtto5.json --svg /tmp/card.svg 2>&1 | grep -q unchanged
   action:
     runs-on: ubuntu-latest
     steps:

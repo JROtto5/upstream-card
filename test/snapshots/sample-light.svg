@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="495" height="196" viewBox="0 0 495 196" role="img" aria-label="octo&apos;s upstream contributions: 4 PRs merged into 3 other projects">
+<title>octo&apos;s upstream contributions: 4 PRs merged into 3 other projects</title>
+<style>
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+.h{font-size:17px;font-weight:600}
+.sub,.muted{font-size:12px}
+.repo{font-size:13px}
+.count{font-size:13px;font-weight:600}
+.h,.count{fill:#1f2328}.sub{fill:#1a7f37}.repo{fill:#1f2328}.muted{fill:#656d76}.card{fill:#ffffff;stroke:#d0d7de}.bar{fill:#2da44e}
+</style>
+<rect x="0.5" y="0.5" width="494" height="195" rx="6" class="card"/>
+<text x="24" y="32" class="h">octo&apos;s upstream contributions</text>
+<text x="24" y="52" class="sub">4 PRs merged into 3 other projects</text>
+<g transform="translate(24,78)"><circle cx="5" cy="-4" r="5" fill="#00ADD8"/><text x="18" y="0" class="repo">acme/widgets</text><text x="300" y="0" class="muted" text-anchor="end">★ 10</text><rect x="320" y="-11" width="70" height="10" rx="3" class="bar"/><text x="447" y="0" class="count" text-anchor="end">2</text></g>
+<g transform="translate(24,104)"><circle cx="5" cy="-4" r="5" fill="#f34b7d"/><text x="18" y="0" class="repo">big/engine</text><text x="300" y="0" class="muted" text-anchor="end">★ 9k</text><rect x="320" y="-11" width="35" height="10" rx="3" class="bar"/><text x="447" y="0" class="count" text-anchor="end">1</text></g>
+<g transform="translate(24,130)"><circle cx="5" cy="-4" r="5" fill="#00ADD8"/><text x="18" y="0" class="repo">small/tool</text><text x="300" y="0" class="muted" text-anchor="end">★ 5</text><rect x="320" y="-11" width="35" height="10" rx="3" class="bar"/><text x="447" y="0" class="count" text-anchor="end">1</text></g>
+<text x="24" y="180" class="muted">Go · C++</text>
+</svg>

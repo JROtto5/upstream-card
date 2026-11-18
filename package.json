@@ -1,0 +1,16 @@
+{
+  "name": "upstream-card",
+  "version": "0.1.0",
+  "description": "Show the pull requests you got merged into other people's projects: an SVG card and a markdown list for your GitHub profile README. Zero dependencies.",
+  "type": "module",
+  "bin": { "upstream-card": "bin/upstream-card.js" },
+  "main": "src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "files": ["bin", "src", "action.yml", "README.md", "LICENSE"],
+  "scripts": { "test": "node --test test/" },
+  "engines": { "node": ">=20" },
+  "keywords": ["github", "profile", "readme", "open-source", "contributions", "svg", "github-action"],
+  "repository": { "type": "git", "url": "git+https://github.com/JROtto5/upstream-card.git" },
+  "license": "MIT",
+  "author": "John Otto (https://github.com/JROtto5)"
+}

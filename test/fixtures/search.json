@@ -1,0 +1,9 @@
+{
+  "total_count": 4,
+  "items": [
+    { "number": 12, "title": "Fix the off-by-one in paging", "html_url": "https://github.com/acme/widgets/pull/12", "repository_url": "https://api.github.com/repos/acme/widgets", "closed_at": "2026-11-10T10:00:00Z", "pull_request": { "merged_at": "2026-11-10T10:00:00Z" } },
+    { "number": 7, "title": "Docs: install on Arch", "html_url": "https://github.com/acme/widgets/pull/7", "repository_url": "https://api.github.com/repos/acme/widgets", "closed_at": "2026-10-02T09:00:00Z", "pull_request": { "merged_at": "2026-10-02T09:00:00Z" } },
+    { "number": 301, "title": "Faster packing", "html_url": "https://github.com/big/engine/pull/301", "repository_url": "https://api.github.com/repos/big/engine", "closed_at": "2026-11-01T12:00:00Z", "pull_request": { "merged_at": "2026-11-01T12:00:00Z" } },
+    { "number": 5, "title": "Handle empty config", "html_url": "https://github.com/small/tool/pull/5", "repository_url": "https://api.github.com/repos/small/tool", "closed_at": "2026-09-15T08:00:00Z", "pull_request": { "merged_at": "2026-09-15T08:00:00Z" } }
+  ]
+}

@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+      - name: Render the example card offline
+        run: node bin/upstream-card.js --from-json examples/JROtto5.json --svg /tmp/card.svg && grep -q "<svg" /tmp/card.svg
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the action against this repo's owner
+        uses: ./
+        with:
+          svg: /tmp/action-card.svg
+      - run: grep -q "PRs merged into" /tmp/action-card.svg

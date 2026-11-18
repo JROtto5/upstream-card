@@ -1,0 +1,45 @@
+name: upstream-card
+description: Render an SVG card of the pull requests you got merged into other people's projects, for your profile README.
+author: JROtto5
+branding:
+  icon: git-merge
+  color: green
+inputs:
+  user:
+    description: GitHub login to summarize (defaults to the repository owner)
+    default: ${{ github.repository_owner }}
+  svg:
+    description: Path of the SVG card to write
+    default: upstream-card.svg
+  theme:
+    description: dark or light
+    default: dark
+  top:
+    description: Projects shown on the card
+    default: "6"
+  exclude:
+    description: Comma-separated owners or owner/repo to leave out
+    default: ""
+  readme:
+    description: README to update between <!-- upstream-card:start --> and <!-- upstream-card:end --> (empty to skip)
+    default: ""
+  token:
+    description: Token for the GitHub API (only public data is read)
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        UC_USER: ${{ inputs.user }}
+        UC_SVG: ${{ inputs.svg }}
+        UC_THEME: ${{ inputs.theme }}
+        UC_TOP: ${{ inputs.top }}
+        UC_EXCLUDE: ${{ inputs.exclude }}
+        UC_README: ${{ inputs.readme }}
+      run: |
+        args=(--user "$UC_USER" --svg "$UC_SVG" --theme "$UC_THEME" --top "$UC_TOP")
+        [ -n "$UC_EXCLUDE" ] && args+=(--exclude "$UC_EXCLUDE")
+        [ -n "$UC_README" ] && args+=(--readme "$UC_README")
+        node "${{ github.action_path }}/bin/upstream-card.js" "${args[@]}"

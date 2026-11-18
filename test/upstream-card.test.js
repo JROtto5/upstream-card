@@ -330,3 +330,35 @@ test('the README workflow refreshes weekly and on demand, and examples/upstream-
   assert.match(block, /\n  workflow_dispatch:/);
   assert.equal(readFileSync(new URL('../examples/upstream-card.yml', import.meta.url), 'utf8'), block);
 });
+
+test('the PR that was your first merge in a project is badged in the list, wherever it falls in the order', () => {
+  const md = renderMarkdown(summarize(SAMPLE, { exclude: ['work'] }));
+  const line = (n) => md.split('\n').find((l) => l.includes(`(u${n})`));
+  assert.ok(line(1).endsWith('(2026-11-01) · 🌱 first contribution'), 'acme/widgets: #1 merged before #2');
+  assert.ok(!line(2).includes('first contribution'));
+  assert.ok(line(3).includes('first contribution'), 'a project with one merged PR: that PR is the first');
+  assert.equal(summarize([...SAMPLE].reverse()).projects.find((p) => p.repo === 'acme/widgets').firstPr, 1, 'input order does not matter');
+});
+
+test('a first contribution that is past the per-project cap is named on the "and N more" line', () => {
+  const many = Array.from({ length: 5 }, (_, i) => ({ repo: 'acme/widgets', repoId: 1, number: i + 1, title: `t${i}`, url: `u${i}`, mergedAt: `2026-11-0${i + 1}`, stars: 10, language: 'Go' }));
+  const md = renderMarkdown(summarize(many), { perProject: 3 });
+  assert.ok(md.includes('and 2 more, the oldest is your 🌱 first contribution (2026-11-01)'), md);
+  assert.equal((md.match(/first contribution/g) || []).length, 1, 'once per project');
+  assert.ok(!renderMarkdown(summarize(many), { perProject: 5 }).includes('the oldest is your'), 'shown on its own line when it is listed');
+});
+
+test('--since means no first-contribution badges: the oldest PR in the slice is not known to be the first', () => {
+  const s = summarize(SAMPLE, { since: '2026-11-01' });
+  assert.equal(s.since, '2026-11-01');
+  assert.ok(!renderMarkdown(s).includes('first contribution'));
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const json = join(dir, 's.json');
+  const run = (...args) => spawnSync('node', [BIN, '--from-json', json, '--svg', join(dir, 'c.svg'), '--md', join(dir, 'u.md'), ...args], { encoding: 'utf8' });
+  writeFileSync(json, JSON.stringify(summarize(SAMPLE)));
+  assert.equal(run().status, 0);
+  assert.match(readFileSync(join(dir, 'u.md'), 'utf8'), /first contribution/);
+  writeFileSync(json, JSON.stringify(summarize(SAMPLE, { since: '2026-11-01' })));
+  assert.equal(run().status, 0);
+  assert.ok(!readFileSync(join(dir, 'u.md'), 'utf8').includes('first contribution'), 'a slice saved with --since stays badge-free offline');
+});

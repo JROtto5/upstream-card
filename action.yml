@@ -32,6 +32,9 @@ inputs:
   readme:
     description: README to update between <!-- upstream-card:start --> and <!-- upstream-card:end --> (empty to skip)
     default: ""
+  no-stars:
+    description: "true to leave star counts off, so the card changes only when a merge does"
+    default: "false"
   dry-run:
     description: "true to print what would change and write nothing"
     default: "false"
@@ -54,6 +57,7 @@ runs:
         UC_SINCE: ${{ inputs.since }}
         UC_README: ${{ inputs.readme }}
         UC_DRY: ${{ inputs.dry-run }}
+        UC_NO_STARS: ${{ inputs.no-stars }}
         UC_BIN: ${{ github.action_path }}/bin/upstream-card.js
       run: |
         args=(--user "$UC_USER" --svg "$UC_SVG" --theme "$UC_THEME" --top "$UC_TOP" --min-stars "$UC_MIN_STARS")
@@ -62,4 +66,5 @@ runs:
         [ -n "$UC_README" ] && args+=(--readme "$UC_README")
         [ "$UC_EXCLUDE_FORKS" = "true" ] && args+=(--exclude-forks)
         [ "$UC_DRY" = "true" ] && args+=(--dry-run)
+        [ "$UC_NO_STARS" = "true" ] && args+=(--no-stars)
         node "$UC_BIN" "${args[@]}"

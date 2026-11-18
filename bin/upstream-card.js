@@ -19,12 +19,16 @@ Usage: upstream-card --user <login> [options]
   --readme <file>         put the markdown list between <!-- upstream-card:start --> and :end --> in this file
   --json <file>           also write the summary as JSON
   --from-json <file>      render from a saved --json summary instead of calling GitHub (offline; filters still apply)
+  --no-stars              leave star counts off, so the card changes only when a merge does
   --dry-run               print what would change; write nothing
 
 Needs a token in GITHUB_TOKEN or GH_TOKEN (the default Actions token works). Only public repositories are counted.
 `;
 
-const FLAGS = new Set(['help', 'dry-run', 'exclude-forks']);
+const FLAGS = new Set(['help', 'dry-run', 'exclude-forks', 'no-stars']);
+// Every option that takes a value. Anything else is an error: a mistyped --exlude must not publish
+// the PRs it was meant to hide.
+const VALUES = new Set(['user', 'svg', 'theme', 'title', 'top', 'exclude', 'exclude-orgs', 'min-stars', 'since', 'md', 'readme', 'json', 'from-json']);
 
 function parse(argv) {
   const a = {};
@@ -34,6 +38,7 @@ function parse(argv) {
     if (!k.startsWith('--')) throw new Error(`unexpected argument: ${k}`);
     const name = k.slice(2);
     if (FLAGS.has(name)) { a[name] = true; continue; }
+    if (!VALUES.has(name)) throw new Error(`unknown option ${k} (see --help)`);
     const v = argv[i + 1];
     if (v === undefined || v.startsWith('--')) throw new Error(`${k} needs a value`);
     a[name] = v;
@@ -74,8 +79,10 @@ async function main() {
   }
   const top = a.top ? wholeNumber(a.top, '--top', 1) : 6;
   const minStars = a['min-stars'] ? wholeNumber(a['min-stars'], '--min-stars', 0) : 0;
-  if (a.since && (!/^\d{4}-\d{2}-\d{2}$/.test(a.since) || Number.isNaN(Date.parse(`${a.since}T00:00:00Z`)))) {
-    throw new Error('--since must be a date like 2026-01-31');
+  // Round-trip the date: V8 rolls 2026-02-30 over to March 2 instead of rejecting it.
+  const sinceDate = a.since && new Date(`${a.since}T00:00:00Z`);
+  if (a.since && !(/^\d{4}-\d{2}-\d{2}$/.test(a.since) && !Number.isNaN(sinceDate.getTime()) && sinceDate.toISOString().startsWith(a.since))) {
+    throw new Error('--since must be a real date like 2026-01-31');
   }
   const exclude = [a.exclude, a['exclude-orgs']].filter(Boolean).join(',').split(',').map((x) => x.trim()).filter(Boolean);
   let prs;
@@ -91,8 +98,8 @@ async function main() {
   summary.user = user;
   const dry = !!a['dry-run'];
   // Build every output before writing any, so a bad --readme can't leave half the files updated.
-  const md = renderMarkdown(summary);
-  const outputs = [[a.svg || 'upstream-card.svg', renderSVG(summary, { user, theme: a.theme, title: a.title })]];
+  const md = renderMarkdown(summary, { stars: !a['no-stars'] });
+  const outputs = [[a.svg || 'upstream-card.svg', renderSVG(summary, { user, theme: a.theme, title: a.title, stars: !a['no-stars'] })]];
   if (a.md) outputs.push([a.md, md]);
   if (a.readme) {
     if (!existsSync(a.readme)) throw new Error(`${a.readme} does not exist`);

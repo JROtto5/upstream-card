@@ -37,7 +37,7 @@ function colours(t) {
 }
 
 // theme: 'auto' follows the viewer's light/dark setting (prefers-color-scheme); 'dark' or 'light' fixes it.
-export function renderSVG(summary, { user, theme = 'auto', title } = {}) {
+export function renderSVG(summary, { user, theme = 'auto', title, stars = true } = {}) {
   if (!['auto', 'dark', 'light'].includes(theme)) throw new Error(`unknown theme "${theme}": use auto, dark or light`);
   const palette = theme === 'auto'
     ? `${colours(THEMES.light)}\n@media (prefers-color-scheme: dark){${colours(THEMES.dark)}}`
@@ -58,7 +58,7 @@ export function renderSVG(summary, { user, theme = 'auto', title } = {}) {
       `<g transform="translate(24,${y})">`,
       `<circle cx="5" cy="-4" r="5" fill="${dot}"/>`,
       `<text x="18" y="0" class="repo">${escapeXml(clip(p.repo, 34))}</text>`,
-      `<text x="300" y="0" class="muted" text-anchor="end">★ ${formatStars(p.stars)}</text>`,
+      stars ? `<text x="300" y="0" class="muted" text-anchor="end">★ ${formatStars(p.stars)}</text>` : '',
       `<rect x="320" y="-11" width="${barW}" height="10" rx="3" class="bar"/>`,
       `<text x="447" y="0" class="count" text-anchor="end">${p.merged}</text>`,
       `</g>`,
@@ -85,11 +85,11 @@ ${lines.join('\n')}${empty}
 `;
 }
 
-export function renderMarkdown(summary, { perProject = 3 } = {}) {
+export function renderMarkdown(summary, { perProject = 3, stars = true } = {}) {
   const out = [];
   out.push(`**${totalsLine(summary, { long: true })}.**`, '');
   for (const p of summary.allProjects) {
-    const meta = [p.language, `★ ${formatStars(p.stars)}`].filter(Boolean).join(' · ');
+    const meta = [p.language, stars && `★ ${formatStars(p.stars)}`].filter(Boolean).join(' · ');
     out.push(`- **[${p.repo}](https://github.com/${p.repo})** (${meta}): ${p.merged} merged`);
     for (const pr of p.prs.slice(0, perProject)) {
       out.push(`  - [${clip(pr.title, 100).replace(/[[\]<>]/g, '')}](${pr.url}) (${String(pr.mergedAt).slice(0, 10)})`);

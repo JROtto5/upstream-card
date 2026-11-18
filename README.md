@@ -45,7 +45,7 @@ jobs:
           git diff --cached --quiet || { git commit -m "upstream-card: refresh" && git push; }
 ```
 
-upstream-card only rewrites a file when its content changed, so a day with no new merges makes no commit. Pin the action to a commit SHA, as above, so a later change to this repository can't change what runs in yours.
+upstream-card only rewrites a file when its content changed. A new merge changes it, and so does a change in a shown star count (exact below 1,000, in steps of 100 above). Add `--no-stars` (the Action's `no-stars: true`) if you want commits only when something merges. Pin the action to a commit SHA, as above, so a later change to this repository can't change what runs in yours.
 
 With `readme: README.md`, the full markdown list (every project, with its latest PRs, links and dates) goes between these two markers in your README. If neither marker is there yet, both are added at the end of the file. A lone marker, or two in the wrong order, is an error, so nothing gets written in the wrong place:
 
@@ -77,6 +77,7 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 | `--md <file>` | Also write the markdown list |
 | `--readme <file>` | Put the markdown list between the `upstream-card` markers in this file |
 | `--json <file>` / `--from-json <file>` | Save the summary, or render from a saved one offline; the filters still apply |
+| `--no-stars` | Leave star counts off the card and the list |
 | `--dry-run` | Print which files would be created or updated, and write nothing |
 
 ## What counts

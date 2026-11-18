@@ -152,7 +152,7 @@ test('--since is a UTC date; bad dates are refused', async () => {
   for (const bad of ['2026-13-01', '11/18/2026', 'yesterday']) {
     const r = spawnSync('node', [BIN, '--user', 'octo', '--since', bad], { encoding: 'utf8' });
     assert.equal(r.status, 1, bad);
-    assert.match(r.stderr, /--since must be a date/);
+    assert.match(r.stderr, /--since must be a real date/);
   }
 });
 
@@ -293,4 +293,27 @@ test('long titles are clipped without splitting an emoji', () => {
   const md = renderMarkdown(summarize([{ ...SAMPLE[0], title }]));
   assert.ok(!md.includes('�') && !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(md), 'no lone surrogate');
   assert.ok(md.includes('🎉…'));
+});
+
+test('a mistyped option is an error, not silently ignored', () => {
+  const r = spawnSync('node', [BIN, '--user', 'octo', '--exlude', 'work'], { encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /unknown option --exlude/);
+});
+
+test('--since refuses dates that do not exist', () => {
+  for (const bad of ['2026-02-30', '2026-04-31', '2025-02-29']) {
+    const r = spawnSync('node', [BIN, '--user', 'octo', '--since', bad], { encoding: 'utf8' });
+    assert.equal(r.status, 1, bad);
+    assert.match(r.stderr, /real date/);
+  }
+});
+
+test('--no-stars keeps star counts off, so a star change does not change the output', () => {
+  const a = summarize(SAMPLE);
+  const b = summarize(SAMPLE.map((p) => ({ ...p, stars: p.stars + 1 })));
+  assert.notEqual(renderSVG(a, { user: 'o' }), renderSVG(b, { user: 'o' }));
+  assert.equal(renderSVG(a, { user: 'o', stars: false }), renderSVG(b, { user: 'o', stars: false }));
+  assert.equal(renderMarkdown(a, { stars: false }), renderMarkdown(b, { stars: false }));
+  assert.ok(!renderSVG(a, { user: 'o', stars: false }).includes('★'));
 });

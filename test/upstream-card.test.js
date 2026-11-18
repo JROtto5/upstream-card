@@ -239,6 +239,8 @@ test('--from-json applies the filters and refuses a file that is not a summary',
   const bad = spawnSync('node', [BIN, '--from-json', join(dir, 'bad.json')], { encoding: 'utf8' });
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /not an upstream-card summary/);
+  writeFileSync(join(dir, 'bad2.json'), '{"allProjects":[{"prs":[null]}]}');
+  assert.match(spawnSync('node', [BIN, '--from-json', join(dir, 'bad2.json')], { encoding: 'utf8' }).stderr, /not an upstream-card summary/);
 });
 
 test('a missing --readme fails before any file is written', () => {

@@ -68,7 +68,7 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 | `--user <login>` | The GitHub user to summarize (not needed with `--from-json`) |
 | `--svg <file>` | Where to write the card (default `upstream-card.svg`) |
 | `--theme auto\|dark\|light` | Card theme; `auto` (the default) follows the viewer's light/dark setting |
-| `--title <text>` | Card heading (default: "<user>'s upstream contributions") |
+| `--title <text>` | Card heading (default: `<user>'s upstream contributions`) |
 | `--top <n>` | Projects on the card (default 6); the markdown list always has all of them |
 | `--exclude <list>` | Comma-separated owners or `owner/repo` to leave out (`--exclude-orgs` is the same) |
 | `--min-stars <n>` | Leave out projects with fewer stars |

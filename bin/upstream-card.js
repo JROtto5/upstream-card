@@ -52,7 +52,7 @@ function wholeNumber(v, name, min) {
 function loadSaved(file) {
   let data;
   try { data = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new Error(`${file}: not a readable JSON file (${e.message})`); }
-  if (!Array.isArray(data?.allProjects) || !data.allProjects.every((p) => Array.isArray(p?.prs))) {
+  if (!Array.isArray(data?.allProjects) || !data.allProjects.every((p) => Array.isArray(p?.prs) && p.prs.every((x) => typeof x?.repo === 'string'))) {
     throw new Error(`${file}: not an upstream-card summary (write one with --json)`);
   }
   return { prs: data.allProjects.flatMap((p) => p.prs), user: data.user };

@@ -8,7 +8,9 @@ const SEARCH_CAP = 1000; // GitHub search never returns more than this for one q
 export function searchQuery(user, { from, to } = {}) {
   // is:public keeps private work (a day job, client repos) off a public card even when the
   // token can see it. -user: drops the person's own repositories.
-  const q = [`author:${user}`, 'is:pr', 'is:merged', 'is:public', `-user:${user}`];
+  // sort:updated-desc: search cannot sort by merge date, and for merged PRs the last update is
+  // nearly always the merge, so inside a window, too, the most recent PRs come first.
+  const q = [`author:${user}`, 'is:pr', 'is:merged', 'is:public', `-user:${user}`, 'sort:updated-desc'];
   if (from && to) q.push(`merged:${from}..${to}`);
   else if (from) q.push(`merged:>=${from}`);
   else if (to) q.push(`merged:<=${to}`);

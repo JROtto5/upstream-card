@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchQuery, fetchMergedPRs, fetchPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
+import { searchQuery, RateLimitError, fetchMergedPRs, fetchPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/upstream-card.js', import.meta.url));
 const SNAP = (name) => new URL(`./snapshots/${name}`, import.meta.url);
@@ -139,7 +139,7 @@ test('no token fails clearly; a token is sent', async () => {
 });
 
 test('an API error names the status, and GraphQL errors surface', async () => {
-  const bad = async () => ({ ok: false, status: 403, text: async () => 'rate limited' });
+  const bad = async () => ({ ok: false, status: 403, text: async () => 'Resource not accessible by integration' });
   await assert.rejects(fetchMergedPRs('octo', { token: 't', fetchImpl: bad, now: NOW }), /GitHub API 403/);
   const err = async () => ({ ok: true, json: async () => ({ errors: [{ message: 'Something broke' }] }) });
   await assert.rejects(fetchMergedPRs('octo', { token: 't', fetchImpl: err, now: NOW }), /Something broke/);
@@ -518,4 +518,65 @@ test('reviewed PRs are windowed with the reviewed query, and an over-full day sa
   const warnings = [];
   await windows('octo', '2026-11-18', '2026-11-18', { token: 't', fetchImpl: fakeGraphQL({ count: () => 1500, pages: () => ({ nodes: [] }) }), type: 'reviewed', warn: (m) => warnings.push(m) });
   assert.match(warnings.join(), /1500 reviewed PRs on 2026-11-18 alone/);
+});
+
+// Rate limits: keep the last card, exit 0, never write half a card
+const STUB = fileURLToPath(new URL('./fixtures/stub-fetch.mjs', import.meta.url));
+const runStubbed = (mode, args, env = {}) => spawnSync('node', ['--import', STUB, BIN, '--user', 'octo', ...args], { encoding: 'utf8', env: { PATH: process.env.PATH, GITHUB_TOKEN: 't', UC_STUB: mode, ...env } });
+
+test('a used-up API budget is a RateLimitError, whatever way GitHub says it', async () => {
+  const hdr = (h) => ({ get: (k) => h[k.toLowerCase()] ?? null });
+  const reply = (r) => async () => r;
+  const call = (r) => fetchMergedPRs('octo', { token: 't', fetchImpl: reply(r), now: NOW });
+  await assert.rejects(call({ ok: false, status: 403, headers: hdr({ 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1893456000' }), text: async () => '' }), (e) => e instanceof RateLimitError && e.resetAt.toISOString() === '2030-01-01T00:00:00.000Z' && /resets 2030-01-01/.test(e.message));
+  await assert.rejects(call({ ok: false, status: 403, headers: hdr({ 'retry-after': '60' }), text: async () => '' }), RateLimitError);
+  // A secondary limit also carries the primary window's reset; retry-after is the one that counts.
+  const before = Date.now();
+  await assert.rejects(call({ ok: false, status: 403, headers: hdr({ 'retry-after': '60', 'x-ratelimit-remaining': '4000', 'x-ratelimit-reset': '1893456000' }), text: async () => '' }), (e) => e instanceof RateLimitError && e.resetAt.getTime() - before >= 60e3 && e.resetAt.getTime() - before < 120e3);
+  await assert.rejects(call({ ok: false, status: 403, headers: hdr({}), text: async () => 'You have exceeded a secondary rate limit' }), RateLimitError);
+  await assert.rejects(call({ ok: false, status: 429, headers: hdr({}), text: async () => '' }), RateLimitError);
+  await assert.rejects(call({ ok: true, status: 200, headers: hdr({}), json: async () => ({ errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded' }] }) }), RateLimitError);
+  // Not limits: a bad token and an ordinary GraphQL error stay plain errors.
+  await assert.rejects(call({ ok: false, status: 403, headers: hdr({ 'x-ratelimit-remaining': '4000' }), text: async () => 'Resource not accessible' }), (e) => !(e instanceof RateLimitError) && /GitHub API 403/.test(e.message));
+  await assert.rejects(call({ ok: true, status: 200, headers: hdr({}), json: async () => ({ errors: [{ type: 'NOT_FOUND', message: 'nope' }] }) }), (e) => !(e instanceof RateLimitError));
+});
+
+test('rate limited with a card already committed: it is kept byte for byte, the notice says so, exit 0', () => {
+  for (const mode of ['limit-403', 'limit-429', 'limit-graphql']) {
+    const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+    const svg = join(dir, 'c.svg');
+    const md = join(dir, 'u.md');
+    writeFileSync(svg, 'LAST GOOD CARD');
+    writeFileSync(md, 'LAST GOOD LIST');
+    const r = runStubbed(mode, ['--svg', svg, '--md', md]);
+    assert.equal(r.status, 0, `${mode}: ${r.stderr}`);
+    assert.match(r.stderr, /rate limit reached.*keeping the existing .*c\.svg.*unchanged/);
+    assert.equal(readFileSync(svg, 'utf8'), 'LAST GOOD CARD');
+    assert.equal(readFileSync(md, 'utf8'), 'LAST GOOD LIST');
+  }
+});
+
+test('rate limited with nothing to keep: fails, and writes nothing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const svg = join(dir, 'c.svg');
+  writeFileSync(svg, 'LAST GOOD CARD');
+  const r = runStubbed('limit-403', ['--svg', svg, '--md', join(dir, 'new.md')]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /rate limit reached.*new\.md not written yet, so there is nothing to keep/);
+  assert.ok(!existsSync(join(dir, 'new.md')));
+  assert.equal(readFileSync(svg, 'utf8'), 'LAST GOOD CARD');
+});
+
+test('in Actions the rate-limit notice is also a warning annotation; a bad token is still a failure', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const svg = join(dir, 'c.svg');
+  writeFileSync(svg, 'LAST GOOD CARD');
+  const r = runStubbed('limit-403', ['--svg', svg], { GITHUB_ACTIONS: 'true' });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /^::warning title=upstream-card::GitHub API rate limit reached/);
+  assert.doesNotMatch(runStubbed('limit-403', ['--svg', svg]).stdout, /::warning/, 'annotation only inside Actions');
+  const bad = runStubbed('bad-token', ['--svg', svg]);
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /GitHub API 403/);
+  assert.equal(readFileSync(svg, 'utf8'), 'LAST GOOD CARD');
 });

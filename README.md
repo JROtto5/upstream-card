@@ -95,6 +95,10 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 - **Projects are ranked** by merged PRs, then by reviewed PRs, then by stars, then by the most recent PR.
 - **GitHub's search returns at most 1,000 results per query.** Past that, upstream-card splits the date range into windows that each fit, so long histories are counted in full. Two limits remain, and both print a warning rather than cutting silently: a single day with more than 1,000 merged PRs, and the library's `max` option (5,000 by default), which keeps the newest PRs. Both apply to merged and reviewed PRs separately; reviewed PRs are windowed by the day they were opened.
 
+## Rate limits
+
+If GitHub's API budget runs out mid-run (the primary limit, or the secondary "slow down" one), upstream-card writes nothing: your last card, list and README block stay exactly as they were, it prints a notice (a warning annotation inside Actions) and exits 0, so a scheduled run doesn't go red for a limit that resets on its own. Nothing is written until every page has been read, so a half-built card is never saved. If a file it would have written doesn't exist yet there is nothing to keep, so that case exits 1. A bad token and other API errors still fail the run.
+
 ## Library
 
 ```js
@@ -105,6 +109,8 @@ const summary = summarize(prs, { top: 6, minStars: 10, types: ['merged', 'review
 const svg = renderSVG(summary, { user: 'octocat', theme: 'light' });
 ```
 
+When GitHub's API budget runs out, `fetchPRs` throws a `RateLimitError` (also exported) whose `resetAt` is a `Date`, or `null` when GitHub didn't say, so a caller can keep its last result.
+
 ## Development
 
 ```sh
@@ -112,7 +118,7 @@ npm test   # node --test, no dependencies; uses xmllint when it's installed
 UPDATE_SNAPSHOTS=1 npm test   # after an intended change to the card's look
 ```
 
-The tests cover the npm `bin` symlink, pagination past 100 results and date-window splitting past 1,000; private, deleted and renamed repositories; hostile repository names and titles (escaped, checked with xmllint); a second run changing nothing; a missing token; `--since` boundaries; and snapshots of all three themes.
+The tests cover the npm `bin` symlink, pagination past 100 results and date-window splitting past 1,000; private, deleted and renamed repositories; hostile repository names and titles (escaped, checked with xmllint); a second run changing nothing; a missing token; `--since` boundaries; rate limits (the last card is kept, byte for byte), and snapshots of all three themes.
 
 The code was reviewed with [crucible](https://github.com/JROtto5/crucible), an evidence-first AI code reviewer, before each release.
 

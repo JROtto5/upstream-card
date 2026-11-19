@@ -40,6 +40,33 @@ const SEARCH = `query($q: String!, $after: String) {
 
 const COUNT = `query($q: String!) { search(query: $q, type: ISSUE, first: 1) { issueCount } }`;
 
+// Thrown when GitHub says the API budget is used up (primary limit) or asks us to back off (secondary
+// limit), so the caller can keep what it already has instead of failing the run.
+export class RateLimitError extends Error {
+  constructor(message, resetAt = null) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.resetAt = resetAt; // Date, or null when GitHub didn't say
+  }
+}
+
+function rateLimitError(headers) {
+  const h = (k) => headers?.get?.(k) ?? null;
+  const reset = Number(h('x-ratelimit-reset'));
+  const retry = Number(h('retry-after'));
+  // retry-after (a secondary limit) wins: those replies still carry the primary window's reset, which can be an hour off.
+  const resetAt = retry > 0 ? new Date(Date.now() + retry * 1000) : reset > 0 ? new Date(reset * 1000) : null;
+  return new RateLimitError(`GitHub API rate limit reached${resetAt ? ` (resets ${resetAt.toISOString()})` : ''}`, resetAt);
+}
+
+// A 429 is always a rate limit. A 403 is one when GitHub says so: no budget left, a retry-after, or
+// "rate limit" in the message (the secondary limit). Any other 403 (a bad token) stays an error.
+function isRateLimited(res, body) {
+  if (res.status === 429) return true;
+  if (res.status !== 403) return false;
+  return res.headers?.get?.('x-ratelimit-remaining') === '0' || res.headers?.get?.('retry-after') != null || /rate limit/i.test(body);
+}
+
 export async function graphql(query, variables, { token, fetchImpl = fetch } = {}) {
   if (!token) throw new Error('a GitHub token is required: set GITHUB_TOKEN or GH_TOKEN (the default Actions token works)');
   const res = await fetchImpl(GRAPHQL, {
@@ -49,9 +76,12 @@ export async function graphql(query, variables, { token, fetchImpl = fetch } = {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    if (isRateLimited(res, body)) throw rateLimitError(res.headers);
     throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`);
   }
   const data = await res.json();
+  // GraphQL reports the primary limit as a 200 with an error of this type.
+  if (data.errors?.some((e) => e.type === 'RATE_LIMITED')) throw rateLimitError(res.headers);
   if (data.errors?.length) throw new Error(`GitHub API: ${data.errors.map((e) => e.message).join('; ')}`);
   return data.data;
 }

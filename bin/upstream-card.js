@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { fetchPRs, summarize, TYPES, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
+import { fetchPRs, RateLimitError, summarize, TYPES, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
 
 const HELP = `upstream-card: the pull requests you got merged into other people's projects
 
@@ -81,6 +81,18 @@ function put(file, content, dry, log) {
   if (!dry) writeFileSync(file, content);
 }
 
+// Out of API budget: leave every output as it is (nothing is written before the fetch is complete, so
+// no half-built card), say so, and succeed, so a scheduled run doesn't go red for a limit that resets
+// on its own. If an output doesn't exist yet there is nothing to keep, and that is a failure.
+function keepWhatIsThere(e, files) {
+  const missing = files.filter((f) => !existsSync(f));
+  if (missing.length) throw new Error(`${e.message}; ${missing.join(', ')} not written yet, so there is nothing to keep. Run again later`);
+  const msg = `${e.message}; keeping the existing ${files.join(', ')} unchanged. The next run will refresh them`;
+  if (process.env.GITHUB_ACTIONS === 'true') process.stdout.write(`::warning title=upstream-card::${msg}\n`);
+  process.stderr.write(`upstream-card: ${msg}\n`);
+  return 0;
+}
+
 async function main() {
   const a = parse(process.argv.slice(2));
   if (a.help || (!a.user && !a['from-json'])) {
@@ -103,7 +115,12 @@ async function main() {
     ({ prs, user: savedUser, since: savedSince } = loadSaved(a['from-json']));
   } else {
     const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-    prs = await fetchPRs(a.user, { token, since: a.since, types });
+    try {
+      prs = await fetchPRs(a.user, { token, since: a.since, types });
+    } catch (e) {
+      if (e instanceof RateLimitError) return keepWhatIsThere(e, [a.svg || 'upstream-card.svg', a.md, a.readme, a.json].filter(Boolean));
+      throw e;
+    }
   }
   const summary = summarize(prs, { exclude, minStars, excludeForks: !!a['exclude-forks'], top, types, since: a.since || savedSince });
   const user = a.user || savedUser || '';

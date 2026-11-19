@@ -29,6 +29,9 @@ inputs:
   since:
     description: Only PRs merged on or after this date (YYYY-MM-DD, UTC)
     default: ""
+  types:
+    description: "What to count: merged, reviewed, or merged,reviewed (reviewed = PRs by others that you reviewed, in public repos you don't own)"
+    default: merged
   readme:
     description: README to update between <!-- upstream-card:start --> and <!-- upstream-card:end --> (empty to skip)
     default: ""
@@ -55,12 +58,13 @@ runs:
         UC_MIN_STARS: ${{ inputs.min-stars }}
         UC_EXCLUDE_FORKS: ${{ inputs.exclude-forks }}
         UC_SINCE: ${{ inputs.since }}
+        UC_TYPES: ${{ inputs.types }}
         UC_README: ${{ inputs.readme }}
         UC_DRY: ${{ inputs.dry-run }}
         UC_NO_STARS: ${{ inputs.no-stars }}
         UC_BIN: ${{ github.action_path }}/bin/upstream-card.js
       run: |
-        args=(--user "$UC_USER" --svg "$UC_SVG" --theme "$UC_THEME" --top "$UC_TOP" --min-stars "$UC_MIN_STARS")
+        args=(--user "$UC_USER" --svg "$UC_SVG" --theme "$UC_THEME" --top "$UC_TOP" --min-stars "$UC_MIN_STARS" --types "$UC_TYPES")
         [ -n "$UC_EXCLUDE" ] && args+=(--exclude "$UC_EXCLUDE")
         [ -n "$UC_SINCE" ] && args+=(--since "$UC_SINCE")
         [ -n "$UC_README" ] && args+=(--readme "$UC_README")

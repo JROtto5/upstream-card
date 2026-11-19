@@ -37,6 +37,7 @@ jobs:
           # exclude: my-employer,someone/fork   # owners or owner/repo to leave out
           # min-stars: 50        # only projects with at least this many stars
           # since: 2026-01-01    # only PRs merged on or after this date (UTC)
+          # types: merged,reviewed   # also count PRs you reviewed
           # readme: README.md    # also write the full list between the markers below
       - run: |
           git config user.name "github-actions[bot]"
@@ -76,6 +77,7 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 | `--min-stars <n>` | Leave out projects with fewer stars |
 | `--exclude-forks` | Leave out projects that are themselves forks |
 | `--since <YYYY-MM-DD>` | Only PRs merged on or after this date (UTC) |
+| `--types <list>` | What to count: `merged` (the default), `reviewed`, or `merged,reviewed` |
 | `--md <file>` | Also write the markdown list |
 | `--readme <file>` | Put the markdown list between the `upstream-card` markers in this file |
 | `--json <file>` / `--from-json <file>` | Save the summary, or render from a saved one offline; the filters still apply |
@@ -84,21 +86,22 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 
 ## What counts
 
-- **Merged pull requests only.** Closed and open ones don't count.
+- **Merged pull requests only**, by default. Closed and open ones don't count (with `--types reviewed`, see below, PRs you reviewed count in any state).
 - **Public repositories only.** The search always adds `is:public`, and every result's repository is checked again (`isPrivate`), so private work, such as an employer's or a client's repos, never reaches a public card, even when your token can see it. Deleted repositories are skipped.
 - **Renamed or transferred projects** show under their current name, and PRs from before and after a rename count as one project.
 - **Not your own repositories.** The search drops repos you own (`-user:<you>`). Use `--exclude` for organizations you belong to or forks you'd rather leave out.
-- **First contributions** are marked in the markdown list (`🌱 first contribution` on the PR that was your first merge in that project; when it isn't one of the PRs shown, the "and N more" line says the oldest is it). With `--since` there are no marks, since the oldest PR in the slice isn't known to be your first. The card is unchanged.
-- **Projects are ranked** by merged PRs, then by stars, then by the most recent merge.
-- **GitHub's search returns at most 1,000 results per query.** Past that, upstream-card splits the date range into windows that each fit, so long histories are counted in full. Two limits remain, and both print a warning rather than cutting silently: a single day with more than 1,000 merged PRs, and the library's `max` option (5,000 by default), which keeps the newest PRs.
+- **First contributions** are marked in the markdown list (`🌱 first contribution` on the PR that was your first merge in that project; when it isn't one of the PRs shown, the "and N more" line names its date). Reviewed PRs are never marked. With `--since` there are no marks, since the oldest PR in the slice isn't known to be your first. The card is unchanged.
+- **Reviewed PRs are opt-in** (`--types reviewed` or `merged,reviewed`; the Action's `types:`). They are PRs someone else wrote, in public repositories you don't own, that you reviewed (any state; GitHub's `reviewed-by:` search). With both types, the card's bar still counts merged PRs, a project you only reviewed in shows "N reviewed" in place of a bar, and the totals line gives both numbers. Search has no review date, so `--since` and the dates in the list use the day the PR was opened, which also keeps the output from changing when a PR you reviewed later gets new comments. A saved `--json` summary holds only the types it was made with: save it with `--types merged,reviewed` to filter later with `--from-json`.
+- **Projects are ranked** by merged PRs, then by reviewed PRs, then by stars, then by the most recent PR.
+- **GitHub's search returns at most 1,000 results per query.** Past that, upstream-card splits the date range into windows that each fit, so long histories are counted in full. Two limits remain, and both print a warning rather than cutting silently: a single day with more than 1,000 merged PRs, and the library's `max` option (5,000 by default), which keeps the newest PRs. Both apply to merged and reviewed PRs separately; reviewed PRs are windowed by the day they were opened.
 
 ## Library
 
 ```js
-import { fetchMergedPRs, summarize, renderSVG, renderMarkdown } from 'upstream-card';
+import { fetchPRs, summarize, renderSVG, renderMarkdown } from 'upstream-card';
 
-const prs = await fetchMergedPRs('octocat', { token });
-const summary = summarize(prs, { top: 6, minStars: 10 });
+const prs = await fetchPRs('octocat', { token, types: ['merged', 'reviewed'] }); // fetchMergedPRs(user, opts) is merged only
+const summary = summarize(prs, { top: 6, minStars: 10, types: ['merged', 'reviewed'] });
 const svg = renderSVG(summary, { user: 'octocat', theme: 'light' });
 ```
 

@@ -16,6 +16,7 @@ jobs:
           # exclude: my-employer,someone/fork   # owners or owner/repo to leave out
           # min-stars: 50        # only projects with at least this many stars
           # since: 2026-01-01    # only PRs merged on or after this date (UTC)
+          # types: merged,reviewed   # also count PRs you reviewed
           # readme: README.md    # also write the full list between the markers below
       - run: |
           git config user.name "github-actions[bot]"

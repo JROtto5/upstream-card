@@ -5,7 +5,17 @@
 const GRAPHQL = 'https://api.github.com/graphql';
 const SEARCH_CAP = 1000; // GitHub search never returns more than this for one query
 
-export function searchQuery(user, { from, to } = {}) {
+// type 'merged': PRs the user authored that were merged. type 'reviewed': PRs someone else authored
+// that the user reviewed (any state). Merged PRs are dated by merge day; reviewed ones by the day the
+// PR was opened, since search has no review date and a PR's last-update date keeps moving.
+export function searchQuery(user, { from, to, type = 'merged' } = {}) {
+  if (type === 'reviewed') {
+    const q = [`reviewed-by:${user}`, 'is:pr', 'is:public', `-author:${user}`, `-user:${user}`, 'sort:updated-desc'];
+    if (from && to) q.push(`created:${from}..${to}`);
+    else if (from) q.push(`created:>=${from}`);
+    else if (to) q.push(`created:<=${to}`);
+    return q.join(' ');
+  }
   // is:public keeps private work (a day job, client repos) off a public card even when the
   // token can see it. -user: drops the person's own repositories.
   // sort:updated-desc: search cannot sort by merge date, and for merged PRs the last update is
@@ -22,7 +32,7 @@ const SEARCH = `query($q: String!, $after: String) {
     issueCount
     pageInfo { hasNextPage endCursor }
     nodes { ... on PullRequest {
-      number title url mergedAt
+      number title url mergedAt createdAt
       repository { databaseId nameWithOwner isPrivate isFork stargazerCount primaryLanguage { name } owner { login } }
     } }
   }
@@ -51,10 +61,10 @@ const day = (d) => d.toISOString().slice(0, 10);
 // Date windows [from, to] (YYYY-MM-DD, inclusive) each holding at most SEARCH_CAP results,
 // found by halving any window the search says is too big.
 export async function windows(user, from, to, opts) {
-  const { search } = await graphql(COUNT, { q: searchQuery(user, { from, to }) }, opts);
+  const { search } = await graphql(COUNT, { q: searchQuery(user, { from, to, type: opts.type }) }, opts);
   if (search.issueCount <= SEARCH_CAP) return [[from, to]];
   if (from === to) {
-    (opts.warn || console.error)(`upstream-card: ${search.issueCount} merged PRs on ${from} alone; GitHub search returns at most ${SEARCH_CAP}, so that day is incomplete`);
+    (opts.warn || console.error)(`upstream-card: ${search.issueCount} ${opts.type || 'merged'} PRs on ${from} alone; GitHub search returns at most ${SEARCH_CAP}, so that day is incomplete`);
     return [[from, to]];
   }
   const a = new Date(`${from}T00:00:00Z`).getTime();
@@ -66,8 +76,21 @@ export async function windows(user, from, to, opts) {
 
 // -> [{ repo, repoId, number, title, url, mergedAt, stars, language, owner, fork }]
 // Windows are read newest first, so if `max` is reached it's the oldest PRs that are left out (with a warning).
-export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl = fetch, now = new Date(), warn = console.error } = {}) {
-  const opts = { token, fetchImpl, warn };
+export function fetchMergedPRs(user, opts = {}) {
+  return fetchKind(user, 'merged', opts);
+}
+
+// types: 'merged' (default), 'reviewed', or both. Reviewed entries carry kind: 'reviewed' and createdAt
+// instead of mergedAt; `max` applies to each type on its own.
+export async function fetchPRs(user, { types = ['merged'], ...opts } = {}) {
+  const out = [];
+  for (const type of types) out.push(...(await fetchKind(user, type, opts)));
+  return out;
+}
+
+async function fetchKind(user, type, { token, since, max = 5000, fetchImpl = fetch, now = new Date(), warn = console.error } = {}) {
+  const opts = { token, fetchImpl, warn, type };
+  const reviewed = type === 'reviewed';
   const from = since || '2008-01-01'; // GitHub launched in 2008
   const spans = (await windows(user, from, day(now), opts)).reverse();
   const out = [];
@@ -76,11 +99,11 @@ export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl
   for (const [a, b] of spans) {
     let after = null;
     do {
-      const { search } = await graphql(SEARCH, { q: searchQuery(user, { from: a, to: b }), after }, opts);
+      const { search } = await graphql(SEARCH, { q: searchQuery(user, { from: a, to: b, type }), after }, opts);
       for (const n of search.nodes) {
         const r = n?.repository;
         // A deleted repository comes back null; a private one never belongs on a public card.
-        if (!n?.mergedAt || !r || r.isPrivate) continue;
+        if (!(reviewed ? n?.createdAt : n?.mergedAt) || !r || r.isPrivate) continue;
         if (r.owner.login.toLowerCase() === user.toLowerCase()) continue;
         // Window edges and retries could repeat a node; count each PR once.
         const key = `${r.databaseId}#${n.number}`;
@@ -93,7 +116,7 @@ export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl
           number: n.number,
           title: n.title,
           url: n.url,
-          mergedAt: n.mergedAt,
+          ...(reviewed ? { kind: 'reviewed', createdAt: n.createdAt } : { mergedAt: n.mergedAt }),
           stars: r.stargazerCount ?? 0,
           language: r.primaryLanguage?.name ?? null,
           owner: r.owner.login,
@@ -104,6 +127,6 @@ export async function fetchMergedPRs(user, { token, since, max = 5000, fetchImpl
     } while (after);
     if (truncated) break;
   }
-  if (truncated) warn(`upstream-card: stopped at ${max} merged PRs; older ones are left out`);
+  if (truncated) warn(`upstream-card: stopped at ${max} ${type} PRs; older ones are left out`);
   return out;
 }

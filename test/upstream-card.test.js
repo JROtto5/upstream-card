@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchQuery, fetchMergedPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
+import { searchQuery, fetchMergedPRs, fetchPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/upstream-card.js', import.meta.url));
 const SNAP = (name) => new URL(`./snapshots/${name}`, import.meta.url);
@@ -361,4 +361,161 @@ test('--since means no first-contribution badges: the oldest PR in the slice is 
   writeFileSync(json, JSON.stringify(summarize(SAMPLE, { since: '2026-11-01' })));
   assert.equal(run().status, 0);
   assert.ok(!readFileSync(join(dir, 'u.md'), 'utf8').includes('first contribution'), 'a slice saved with --since stays badge-free offline');
+});
+
+// --types: merged (default) and reviewed
+const REVIEWED = [
+  { repo: 'acme/widgets', repoId: 1, number: 20, title: 'review me', url: 'u20', kind: 'reviewed', createdAt: '2026-10-20T00:00:00Z', stars: 10, language: 'Go' },
+  { repo: 'big/engine', repoId: 2, number: 21, title: 'also', url: 'u21', kind: 'reviewed', createdAt: '2026-10-21T00:00:00Z', stars: 9000, language: 'C++' },
+  { repo: 'only/reviewed', repoId: 5, number: 22, title: 'just a review', url: 'u22', kind: 'reviewed', createdAt: '2026-10-22T00:00:00Z', stars: 7, language: 'Rust' },
+];
+
+test('the reviewed search finds other people\'s public PRs you reviewed, dated by when they were opened', () => {
+  const q = searchQuery('octo', { type: 'reviewed', from: '2026-01-01', to: '2026-02-01' });
+  for (const part of ['reviewed-by:octo', 'is:pr', 'is:public', '-author:octo', '-user:octo', 'created:2026-01-01..2026-02-01']) assert.ok(q.includes(part), part);
+  assert.ok(!q.includes('is:merged') && !q.includes('merged:'));
+  assert.ok(searchQuery('octo', { type: 'reviewed', from: '2026-01-01' }).includes('created:>=2026-01-01'));
+  assert.ok(searchQuery('octo').includes('author:octo') && searchQuery('octo').includes('is:merged'), 'merged stays the default');
+});
+
+test('fetchPRs reads merged and reviewed PRs with the right queries and drops private, deleted and own repos', async () => {
+  const pub = repo('acme/widgets', { id: 1 });
+  const priv = repo('work/secret', { id: 8, priv: true });
+  const mine = repo('octo/thing', { id: 9 });
+  const f = fakeGraphQL({
+    count: () => 1,
+    pages: (q) => ({
+      nodes: q.includes('reviewed-by:')
+        ? [{ ...pr(20, pub), createdAt: '2026-10-20T00:00:00Z' }, { ...pr(21, priv), createdAt: '2026-10-21T00:00:00Z' }, { ...pr(22, null), createdAt: '2026-10-22T00:00:00Z' }, { ...pr(23, mine), createdAt: '2026-10-23T00:00:00Z' }, pr(24, pub)]
+        : [pr(1, pub)],
+    }),
+  });
+  const prs = await fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW, types: ['merged', 'reviewed'] });
+  assert.deepEqual(prs.map((p) => [p.number, p.kind ?? 'merged']), [[1, 'merged'], [20, 'reviewed']]);
+  assert.equal(prs[1].createdAt, '2026-10-20T00:00:00Z');
+  assert.equal(prs[1].mergedAt, undefined);
+  const searched = f.calls.map((c) => c.variables.q);
+  assert.ok(searched.some((q) => q.includes('reviewed-by:octo')) && searched.some((q) => q.includes('is:merged')));
+});
+
+test('without types, no reviewed search is ever sent', async () => {
+  const r = repo('acme/widgets');
+  const f = fakeGraphQL({ count: () => 1, pages: () => ({ nodes: [pr(1, r)] }) });
+  await fetchMergedPRs('octo', { token: 't', fetchImpl: f, now: NOW });
+  await fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW });
+  assert.ok(f.calls.length > 0);
+  for (const c of f.calls) assert.ok(!c.variables.q.includes('reviewed-by:'), c.variables.q);
+});
+
+test('max applies to each type on its own', async () => {
+  const r = repo('acme/widgets');
+  const f = fakeGraphQL({
+    count: () => 3,
+    pages: (q) => ({ nodes: [1, 2, 3].map((n) => ({ ...pr(n + (q.includes('reviewed-by:') ? 100 : 0), r), createdAt: '2026-10-01T00:00:00Z' })) }),
+  });
+  const warnings = [];
+  const prs = await fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW, max: 2, types: ['merged', 'reviewed'], warn: (m) => warnings.push(m) });
+  assert.equal(prs.filter((p) => p.kind === 'reviewed').length, 2);
+  assert.equal(prs.filter((p) => !p.kind).length, 2);
+  assert.match(warnings.join('\n'), /stopped at 2 merged PRs/);
+  assert.match(warnings.join('\n'), /stopped at 2 reviewed PRs/);
+});
+
+test('summarize counts only the asked-for types; the default ignores reviewed PRs', () => {
+  const all = [...SAMPLE, ...REVIEWED];
+  assert.deepEqual(summarize(all, { exclude: ['work'] }), summarize(SAMPLE, { exclude: ['work'] }), 'default output is unchanged by reviewed entries');
+  const r = summarize(all, { types: ['reviewed'] });
+  assert.equal(r.totalMerged, 0);
+  assert.equal(r.totalReviewed, 3);
+  assert.equal(r.totalProjects, 3);
+  assert.deepEqual(r.languages.map((l) => [l.name, l.prs]).sort(), [['C++', 1], ['Go', 1], ['Rust', 1]]);
+  const both = summarize(all, { types: ['merged', 'reviewed'], exclude: ['work'] });
+  assert.equal(both.totalMerged, 4);
+  assert.equal(both.totalReviewed, 3);
+  assert.equal(both.totalProjects, 4);
+  const widgets = both.projects.find((p) => p.repo === 'acme/widgets');
+  assert.equal(widgets.merged, 2);
+  assert.equal(widgets.reviewed, 1);
+  assert.equal(widgets.prs.length, 3);
+  assert.equal(both.projects.at(-1).repo, 'only/reviewed', 'a project you only reviewed in ranks after those with merges');
+  assert.equal(summarize(all, { types: ['reviewed'], minStars: 100 }).totalProjects, 1, 'filters apply to reviewed PRs too');
+});
+
+test('totals read right for merged, reviewed and both', () => {
+  const all = [...SAMPLE, ...REVIEWED];
+  assert.equal(totalsLine(summarize(all, { exclude: ['work'] })), '4 PRs merged into 3 other projects');
+  assert.equal(totalsLine(summarize(all, { types: ['reviewed'] })), '3 PRs reviewed in 3 other projects');
+  assert.equal(totalsLine(summarize(all, { types: ['merged', 'reviewed'], exclude: ['work'] })), '4 PRs merged, 3 reviewed, in 4 other projects');
+  assert.equal(totalsLine(summarize([REVIEWED[0]], { types: ['reviewed'] }), { long: true }), '1 pull request reviewed in 1 other project');
+});
+
+test('the card and list show reviewed PRs and stay well-formed', (t) => {
+  const all = [...SAMPLE, ...REVIEWED];
+  const reviewedOnly = summarize(all, { types: ['reviewed'] });
+  const svg = renderSVG(reviewedOnly, { user: 'octo' });
+  assert.ok(svg.includes('3 PRs reviewed in 3 other projects'));
+  assert.equal((svg.match(/class="bar"/g) || []).length, 3, 'a bar per project');
+  const both = summarize(all, { types: ['merged', 'reviewed'], exclude: ['work'] });
+  const svgBoth = renderSVG(both, { user: 'octo' });
+  assert.ok(svgBoth.includes('1 reviewed</text>'), 'a project with only reviews says so in words');
+  assert.equal((svgBoth.match(/class="bar"/g) || []).length, 3, 'and gets no bar');
+  assert.ok(!svg.includes('undefined') && !svgBoth.includes('undefined'));
+  assert.ok(renderSVG(summarize([], { types: ['reviewed'] })).includes('No reviewed pull requests'));
+  assert.ok(renderSVG(summarize([], { types: ['merged', 'reviewed'] })).includes('No merged or reviewed pull requests'));
+  const md = renderMarkdown(both);
+  assert.ok(md.startsWith('**4 pull requests merged, 3 reviewed, in 4 other projects.**'));
+  assert.ok(md.includes('): 2 merged, 1 reviewed'), md);
+  assert.ok(md.includes('): 1 reviewed\n'));
+  assert.ok(md.includes('[review me](u20) (reviewed, opened 2026-10-20)'));
+  assert.ok(md.includes('[a](u1) (2026-11-01)'), 'merged PRs keep their plain date');
+  const xmllint = spawnSync('xmllint', ['--version']);
+  if (xmllint.error) return t.skip('xmllint not installed');
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  writeFileSync(join(dir, 'c.svg'), svgBoth);
+  execFileSync('xmllint', ['--noout', join(dir, 'c.svg')]);
+});
+
+test('--types: validated, applied to a saved summary, and passed by the Action', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const json = join(dir, 's.json');
+  writeFileSync(json, JSON.stringify(summarize([...SAMPLE, ...REVIEWED], { types: ['merged', 'reviewed'] })));
+  const run = (...args) => spawnSync('node', [BIN, '--from-json', json, '--svg', join(dir, 'c.svg'), ...args], { encoding: 'utf8' });
+  const r = run('--types', 'reviewed');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(readFileSync(join(dir, 'c.svg'), 'utf8'), /3 PRs reviewed in 3 other projects/);
+  assert.match(r.stderr, /0 merged PRs, 3 reviewed in 3 projects/);
+  assert.match(run('--types', 'reviewed,merged', '--exclude', 'work').stderr, /4 merged PRs, 3 reviewed in 4 projects/);
+  assert.match(run().stderr, /5 merged PRs in 4 projects/, 'no --types: merged only, same line as before');
+  for (const bad of ['review', 'merged,', '', 'all']) {
+    const e = run('--types', bad);
+    assert.equal(e.status, 1, JSON.stringify(bad));
+    assert.match(e.stderr, /--types takes merged, reviewed/);
+  }
+  const action = readFileSync(new URL('../action.yml', import.meta.url), 'utf8');
+  assert.match(action, /\n  types:\n/);
+  assert.match(action, /UC_TYPES: \$\{\{ inputs\.types \}\}/);
+  assert.match(action, /--types "\$UC_TYPES"/);
+});
+
+test('a reviewed PR is never a first contribution, even when it is the oldest in the project', () => {
+  const s = summarize([...SAMPLE, ...REVIEWED], { exclude: ['work'], types: ['merged', 'reviewed'] });
+  assert.equal(s.allProjects.find((p) => p.repo === 'acme/widgets').firstPr, 1, '#20 (reviewed) is older but not a merge');
+  assert.equal(s.allProjects.find((p) => p.repo === 'only/reviewed').firstPr, undefined);
+  const md = renderMarkdown(s);
+  const line = (u) => md.split('\n').find((l) => l.includes(`(${u})`));
+  assert.ok(line('u1').endsWith('· 🌱 first contribution'));
+  for (const u of ['u20', 'u21', 'u22']) assert.ok(!line(u).includes('first contribution'), u);
+  const capped = renderMarkdown(s, { perProject: 1 });
+  assert.ok(capped.includes('and 2 more, among them your 🌱 first contribution (2026-11-01)'), capped);
+});
+
+test('reviewed PRs are windowed with the reviewed query, and an over-full day says "reviewed"', async () => {
+  // 1,500 reviewed PRs over the whole range, none merged: only the reviewed count may drive the split.
+  const f = fakeGraphQL({ count: (q) => (q.includes('reviewed-by:') ? (q.includes('2008-01-01..2026-11-18') ? 1500 : 600) : 0), pages: () => ({ nodes: [] }) });
+  const w = await windows('octo', '2008-01-01', '2026-11-18', { token: 't', fetchImpl: f, type: 'reviewed' });
+  assert.ok(w.length > 1, 'split');
+  assert.ok(f.calls.every((c) => c.variables.q.includes('reviewed-by:octo') && c.variables.q.includes('created:')));
+  const warnings = [];
+  await windows('octo', '2026-11-18', '2026-11-18', { token: 't', fetchImpl: fakeGraphQL({ count: () => 1500, pages: () => ({ nodes: [] }) }), type: 'reviewed', warn: (m) => warnings.push(m) });
+  assert.match(warnings.join(), /1500 reviewed PRs on 2026-11-18 alone/);
 });

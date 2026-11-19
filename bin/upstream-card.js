@@ -60,7 +60,7 @@ function loadSaved(file) {
   if (!Array.isArray(data?.allProjects) || !data.allProjects.every((p) => Array.isArray(p?.prs) && p.prs.every((x) => typeof x?.repo === 'string'))) {
     throw new Error(`${file}: not an upstream-card summary (write one with --json)`);
   }
-  return { prs: data.allProjects.flatMap((p) => p.prs), user: data.user };
+  return { prs: data.allProjects.flatMap((p) => p.prs), user: data.user, since: data.since || null };
 }
 
 // Write only when the content changed, so a scheduled run with nothing new makes no commit.
@@ -87,13 +87,14 @@ async function main() {
   const exclude = [a.exclude, a['exclude-orgs']].filter(Boolean).join(',').split(',').map((x) => x.trim()).filter(Boolean);
   let prs;
   let savedUser;
+  let savedSince = null;
   if (a['from-json']) {
-    ({ prs, user: savedUser } = loadSaved(a['from-json']));
+    ({ prs, user: savedUser, since: savedSince } = loadSaved(a['from-json']));
   } else {
     const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
     prs = await fetchMergedPRs(a.user, { token, since: a.since });
   }
-  const summary = summarize(prs, { exclude, minStars, excludeForks: !!a['exclude-forks'], top });
+  const summary = summarize(prs, { exclude, minStars, excludeForks: !!a['exclude-forks'], top, since: a.since || savedSince });
   const user = a.user || savedUser || '';
   summary.user = user;
   const dry = !!a['dry-run'];

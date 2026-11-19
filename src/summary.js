@@ -1,6 +1,6 @@
 // Group merged PRs by project, apply the filters, and rank the projects.
 
-export function summarize(prs, { exclude = [], minStars = 0, excludeForks = false, top = 6 } = {}) {
+export function summarize(prs, { exclude = [], minStars = 0, excludeForks = false, top = 6, since = null } = {}) {
   const skip = exclude.map((s) => s.toLowerCase());
   const excluded = (pr) => {
     const r = pr.repo.toLowerCase();
@@ -26,6 +26,7 @@ export function summarize(prs, { exclude = [], minStars = 0, excludeForks = fals
       stars: list[0].stars ?? 0,
       language: list[0].language ?? null,
       first: first.mergedAt,
+      firstPr: first.number, // the PR that was your first merge here (only trustworthy without `since`)
       last: list[0].mergedAt,
       prs: list,
     };
@@ -35,6 +36,8 @@ export function summarize(prs, { exclude = [], minStars = 0, excludeForks = fals
   const languages = new Map();
   for (const p of projects) if (p.language) languages.set(p.language, (languages.get(p.language) || 0) + p.merged);
   return {
+    // With --since the oldest PR in view isn't necessarily your first there, so no first-contribution badges.
+    since,
     totalMerged: projects.reduce((n, p) => n + p.merged, 0),
     totalProjects: projects.length,
     languages: [...languages.entries()].sort((a, b) => b[1] - a[1]).map(([name, n]) => ({ name, merged: n })),

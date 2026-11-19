@@ -85,16 +85,24 @@ ${lines.join('\n')}${empty}
 `;
 }
 
+const FIRST = '🌱 first contribution';
+
 export function renderMarkdown(summary, { perProject = 3, stars = true } = {}) {
   const out = [];
   out.push(`**${totalsLine(summary, { long: true })}.**`, '');
   for (const p of summary.allProjects) {
     const meta = [p.language, stars && `★ ${formatStars(p.stars)}`].filter(Boolean).join(' · ');
     out.push(`- **[${p.repo}](https://github.com/${p.repo})** (${meta}): ${p.merged} merged`);
-    for (const pr of p.prs.slice(0, perProject)) {
-      out.push(`  - [${clip(pr.title, 100).replace(/[[\]<>]/g, '')}](${pr.url}) (${String(pr.mergedAt).slice(0, 10)})`);
+    const badges = !summary.since && p.firstPr !== undefined; // see summarize: no badges for a --since slice
+    const shown = p.prs.slice(0, perProject);
+    for (const pr of shown) {
+      const badge = badges && pr.number === p.firstPr ? ` · ${FIRST}` : '';
+      out.push(`  - [${clip(pr.title, 100).replace(/[[\]<>]/g, '')}](${pr.url}) (${String(pr.mergedAt).slice(0, 10)})${badge}`);
     }
-    if (p.prs.length > perProject) out.push(`  - and ${p.prs.length - perProject} more`);
+    if (p.prs.length > perProject) {
+      const hidden = badges && !shown.some((pr) => pr.number === p.firstPr) ? `, the oldest is your ${FIRST} (${String(p.first).slice(0, 10)})` : '';
+      out.push(`  - and ${p.prs.length - perProject} more${hidden}`);
+    }
   }
   return out.join('\n') + '\n';
 }

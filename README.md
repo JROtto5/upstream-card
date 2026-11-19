@@ -88,6 +88,7 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 - **Public repositories only.** The search always adds `is:public`, and every result's repository is checked again (`isPrivate`), so private work, such as an employer's or a client's repos, never reaches a public card, even when your token can see it. Deleted repositories are skipped.
 - **Renamed or transferred projects** show under their current name, and PRs from before and after a rename count as one project.
 - **Not your own repositories.** The search drops repos you own (`-user:<you>`). Use `--exclude` for organizations you belong to or forks you'd rather leave out.
+- **First contributions** are marked in the markdown list (`🌱 first contribution` on the PR that was your first merge in that project; when it isn't one of the PRs shown, the "and N more" line says the oldest is it). With `--since` there are no marks, since the oldest PR in the slice isn't known to be your first. The card is unchanged.
 - **Projects are ranked** by merged PRs, then by stars, then by the most recent merge.
 - **GitHub's search returns at most 1,000 results per query.** Past that, upstream-card splits the date range into windows that each fit, so long histories are counted in full. Two limits remain, and both print a warning rather than cutting silently: a single day with more than 1,000 merged PRs, and the library's `max` option (5,000 by default), which keeps the newest PRs.
 

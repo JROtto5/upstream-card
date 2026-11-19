@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { fetchPRs, probe, RateLimitError, summarize, TYPES, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
+import { fetchPRs, probe, RateLimitError, summarize, TYPES, checkTypes, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
 
 const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
@@ -64,7 +64,7 @@ function parseTypes(v) {
   const asked = v.split(',').map((x) => x.trim());
   const bad = asked.find((t) => !TYPES.includes(t));
   if (bad !== undefined) throw new Error(`--types takes ${TYPES.join(', ')} or both separated by a comma, not "${bad}"`);
-  return TYPES.filter((t) => asked.includes(t));
+  return checkTypes(asked);
 }
 
 // The PRs in a saved --json summary, checked for the expected shape.

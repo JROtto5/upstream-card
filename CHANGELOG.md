@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Library: `fetchPRs`, `probe` and `summarize` check `types` the way the CLI does. A repeated type is fetched and counted once (it was counted twice), and an unknown type or a string throws a `TypeError` (an unknown type used to come back as merged PRs) (#15).
+
 ## 0.2.0 (2026-11-19)
 
 - `--types merged,reviewed` (Action: `types`): also count PRs by others that you reviewed, in public repos you don't own. Off by default (#9).

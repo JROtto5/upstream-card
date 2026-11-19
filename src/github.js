@@ -2,6 +2,8 @@
 // GitHub's GraphQL search. A token is required (GraphQL has no anonymous access); inside
 // Actions the default GITHUB_TOKEN is enough, since only public data is read.
 
+import { checkTypes } from './summary.js';
+
 const GRAPHQL = 'https://api.github.com/graphql';
 const SEARCH_CAP = 1000; // GitHub search never returns more than this for one query
 
@@ -95,7 +97,7 @@ const STATE = `query($q: String!) { search(query: $q, type: ISSUE, first: 1) { i
 // -> a string; equal strings mean nothing a full run would see has changed (stars and renames aside).
 export async function probe(user, { token, since, types = ['merged'], fetchImpl = fetch } = {}) {
   const state = [];
-  for (const type of types) {
+  for (const type of checkTypes(types)) {
     const { search } = await graphql(STATE, { q: searchQuery(user, { from: since, type }) }, { token, fetchImpl });
     const n = search.nodes?.[0];
     state.push([type, search.issueCount, n?.id ?? null, n?.updatedAt ?? null]);
@@ -131,7 +133,7 @@ export function fetchMergedPRs(user, opts = {}) {
 // instead of mergedAt; `max` applies to each type on its own.
 export async function fetchPRs(user, { types = ['merged'], ...opts } = {}) {
   const out = [];
-  for (const type of types) out.push(...(await fetchKind(user, type, opts)));
+  for (const type of checkTypes(types)) out.push(...(await fetchKind(user, type, opts)));
   return out;
 }
 

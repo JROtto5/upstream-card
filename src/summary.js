@@ -2,12 +2,22 @@
 
 export const TYPES = ['merged', 'reviewed'];
 
+// ['reviewed', 'merged', 'merged'] -> ['merged', 'reviewed']: TYPES order, no repeats. Anything else
+// throws, since an unknown type would otherwise be searched as merged and a string iterated by letter.
+export function checkTypes(types) {
+  if (!Array.isArray(types) || types.length === 0) throw new TypeError(`types must be a non-empty array of ${TYPES.join(', ')}`);
+  const bad = types.find((t) => !TYPES.includes(t));
+  if (bad !== undefined) throw new TypeError(`types takes ${TYPES.join(', ')}, not ${JSON.stringify(bad)}`);
+  return TYPES.filter((t) => types.includes(t));
+}
+
 // The kind of a PR entry; entries saved before --types existed have none and are merged.
 export const kindOf = (pr) => pr.kind ?? 'merged';
 // The date a PR is shown and sorted by: merge date, or for a reviewed PR the day it was opened.
 export const dateOf = (pr) => String(kindOf(pr) === 'reviewed' ? pr.createdAt : pr.mergedAt);
 
 export function summarize(prs, { exclude = [], minStars = 0, excludeForks = false, top = 6, since = null, types = ['merged'] } = {}) {
+  types = checkTypes(types);
   const skip = exclude.map((s) => s.toLowerCase());
   const excluded = (pr) => {
     const r = pr.repo.toLowerCase();

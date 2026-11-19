@@ -131,6 +131,8 @@ const summary = summarize(prs, { top: 6, minStars: 10, types: ['merged', 'review
 const svg = renderSVG(summary, { user: 'octocat', theme: 'light' });
 ```
 
+`types` is an array of `'merged'` and/or `'reviewed'`; `fetchPRs`, `probe` and `summarize` throw a `TypeError` for anything else, and a repeated type counts once.
+
 When GitHub's API budget runs out, `fetchPRs` throws a `RateLimitError` (also exported) whose `resetAt` is a `Date`, or `null` when GitHub didn't say, so a caller can keep its last result.
 
 ## Development

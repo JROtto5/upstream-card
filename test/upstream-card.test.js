@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync, rmSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchQuery, RateLimitError, fetchMergedPRs, fetchPRs, probe, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
+import { searchQuery, RateLimitError, fetchMergedPRs, fetchPRs, probe, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine, checkTypes } from '../src/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/upstream-card.js', import.meta.url));
 const SNAP = (name) => new URL(`./snapshots/${name}`, import.meta.url);
@@ -419,6 +419,19 @@ test('max applies to each type on its own', async () => {
   assert.equal(prs.filter((p) => !p.kind).length, 2);
   assert.match(warnings.join('\n'), /stopped at 2 merged PRs/);
   assert.match(warnings.join('\n'), /stopped at 2 reviewed PRs/);
+});
+
+test('library types are checked once: repeats collapse, unknown types and strings throw', async () => {
+  assert.deepEqual(checkTypes(['reviewed', 'merged', 'merged']), ['merged', 'reviewed']);
+  const f = fakeGraphQL({ count: () => 1, pages: () => ({ nodes: [pr(1, repo('acme/widgets'))] }) });
+  const prs = await fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW, types: ['merged', 'merged'] });
+  assert.equal(prs.length, 1, 'a repeated type is fetched once');
+  assert.deepEqual(summarize(SAMPLE, { types: ['merged', 'merged'] }), summarize(SAMPLE));
+  for (const bad of [['Reviewed'], 'reviewed', [], null]) {
+    assert.throws(() => summarize(SAMPLE, { types: bad }), TypeError, JSON.stringify(bad));
+    await assert.rejects(fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW, types: bad }), TypeError, JSON.stringify(bad));
+    await assert.rejects(probe('octo', { token: 't', fetchImpl: f, types: bad }), TypeError, JSON.stringify(bad));
+  }
 });
 
 test('summarize counts only the asked-for types; the default ignores reviewed PRs', () => {

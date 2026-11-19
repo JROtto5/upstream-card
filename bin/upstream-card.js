@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { fetchPRs, RateLimitError, summarize, TYPES, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
+import { createHash } from 'node:crypto';
+import { fetchPRs, probe, RateLimitError, summarize, TYPES, renderSVG, renderMarkdown, injectBetweenMarkers } from '../src/index.js';
+
+const PKG = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const HELP = `upstream-card: the pull requests you got merged into other people's projects
 
@@ -21,6 +24,7 @@ Usage: upstream-card --user <login> [options]
   --json <file>           also write the summary as JSON
   --from-json <file>      render from a saved --json summary instead of calling GitHub (offline; filters still apply)
   --no-stars              leave star counts off, so the card changes only when a merge does
+  --cache <file>          remember what GitHub showed here and skip the run when nothing changed (see the README)
   --dry-run               print what would change; write nothing
 
 Needs a token in GITHUB_TOKEN or GH_TOKEN (the default Actions token works). Only public repositories are counted.
@@ -29,7 +33,7 @@ Needs a token in GITHUB_TOKEN or GH_TOKEN (the default Actions token works). Onl
 const FLAGS = new Set(['help', 'dry-run', 'exclude-forks', 'no-stars']);
 // Every option that takes a value. Anything else is an error: a mistyped --exlude must not publish
 // the PRs it was meant to hide.
-const VALUES = new Set(['user', 'svg', 'theme', 'title', 'top', 'exclude', 'exclude-orgs', 'min-stars', 'since', 'types', 'md', 'readme', 'json', 'from-json']);
+const VALUES = new Set(['user', 'svg', 'theme', 'title', 'top', 'exclude', 'exclude-orgs', 'min-stars', 'since', 'types', 'md', 'readme', 'json', 'from-json', 'cache']);
 
 function parse(argv) {
   const a = {};
@@ -73,6 +77,17 @@ function loadSaved(file) {
   return { prs: data.allProjects.flatMap((p) => p.prs), user: data.user, since: data.since || null };
 }
 
+const CACHE_MAX_AGE_MS = 30 * 86400e3; // star counts and renames only show up on a full run, so force one this often
+
+// The saved state, if it is still good: made by this version with these exact options (a changed --top
+// or --exclude must redraw the card), recent, and every output file still there. Otherwise null.
+function readCache(file, fingerprint, outputs, now) {
+  let c;
+  try { c = JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+  const fresh = now - Date.parse(c?.refreshedAt) < CACHE_MAX_AGE_MS;
+  return c?.fingerprint === fingerprint && typeof c.state === 'string' && fresh && outputs.every((f) => existsSync(f)) ? c : null;
+}
+
 // Write only when the content changed, so a scheduled run with nothing new makes no commit.
 function put(file, content, dry, log) {
   const old = existsSync(file) ? readFileSync(file, 'utf8') : null;
@@ -108,6 +123,25 @@ async function main() {
   }
   const types = parseTypes(a.types);
   const exclude = [a.exclude, a['exclude-orgs']].filter(Boolean).join(',').split(',').map((x) => x.trim()).filter(Boolean);
+  if (a.cache && a['from-json']) throw new Error('--cache is for runs that call GitHub; it does nothing with --from-json');
+  const outFiles = [a.svg || 'upstream-card.svg', a.md, a.readme, a.json].filter(Boolean);
+  let state = null; // what GitHub shows now, saved at the end
+  const fingerprint = a.cache && createHash('sha256').update(JSON.stringify([PKG.version, process.argv.slice(2).filter((x, i, all) => x !== '--dry-run' && x !== '--cache' && all[i - 1] !== '--cache')])).digest('hex');
+  if (a.cache) {
+    const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+    const saved = readCache(a.cache, fingerprint, outFiles, Date.now());
+    try {
+      state = await probe(a.user, { token, since: a.since, types });
+      if (saved && saved.state === state) {
+        process.stderr.write(`upstream-card: nothing changed since the last run (checked with ${types.length} small search${types.length === 1 ? '' : 'es'}); ${outFiles.join(', ')} left as they are\n`);
+        return 0;
+      }
+    } catch (e) {
+      // Out of budget already: a full run would only hit the same limit.
+      if (e instanceof RateLimitError) return keepWhatIsThere(e, outFiles);
+      process.stderr.write(`upstream-card: could not check for changes (${e.message}); doing a full run\n`);
+    }
+  }
   let prs;
   let savedUser;
   let savedSince = null;
@@ -118,7 +152,7 @@ async function main() {
     try {
       prs = await fetchPRs(a.user, { token, since: a.since, types });
     } catch (e) {
-      if (e instanceof RateLimitError) return keepWhatIsThere(e, [a.svg || 'upstream-card.svg', a.md, a.readme, a.json].filter(Boolean));
+      if (e instanceof RateLimitError) return keepWhatIsThere(e, outFiles);
       throw e;
     }
   }
@@ -137,6 +171,8 @@ async function main() {
   if (a.json) outputs.push([a.json, JSON.stringify(summary, null, 2) + '\n']);
   const log = [];
   for (const [file, content] of outputs) put(file, content, dry, log);
+  // Saved last: the state is only good once the files it describes are written.
+  if (a.cache && state && !dry) writeFileSync(a.cache, JSON.stringify({ version: 2, fingerprint, state, refreshedAt: new Date().toISOString() }) + '\n');
   process.stderr.write(`upstream-card: ${summary.totalMerged} merged PRs${types.includes('reviewed') ? `, ${summary.totalReviewed} reviewed` : ''} in ${summary.totalProjects} projects${dry ? ' (dry run, nothing written)' : ''}\n${log.map((l) => `  ${l}`).join('\n')}\n`);
   return 0;
 }

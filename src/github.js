@@ -86,6 +86,23 @@ export async function graphql(query, variables, { token, fetchImpl = fetch } = {
   return data.data;
 }
 
+const STATE = `query($q: String!) { search(query: $q, type: ISSUE, first: 1) { issueCount nodes { ... on PullRequest { id updatedAt } } } }`;
+
+// What a full run would find, in one small GraphQL call per type: how many PRs the search matches and
+// which one was updated last. A new merge or review, a PR that disappears (deleted, repo made private)
+// or an edited title changes it. GitHub's search API sends no ETag (Cache-Control: no-cache), so a
+// conditional request can't do this; comparing this string with the last run's is the cheap check.
+// -> a string; equal strings mean nothing a full run would see has changed (stars and renames aside).
+export async function probe(user, { token, since, types = ['merged'], fetchImpl = fetch } = {}) {
+  const state = [];
+  for (const type of types) {
+    const { search } = await graphql(STATE, { q: searchQuery(user, { from: since, type }) }, { token, fetchImpl });
+    const n = search.nodes?.[0];
+    state.push([type, search.issueCount, n?.id ?? null, n?.updatedAt ?? null]);
+  }
+  return JSON.stringify(state);
+}
+
 const day = (d) => d.toISOString().slice(0, 10);
 
 // Date windows [from, to] (YYYY-MM-DD, inclusive) each holding at most SEARCH_CAP results,

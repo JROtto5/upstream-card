@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { searchQuery, RateLimitError, fetchMergedPRs, fetchPRs, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
+import { searchQuery, RateLimitError, fetchMergedPRs, fetchPRs, probe, windows, summarize, renderSVG, renderMarkdown, injectBetweenMarkers, formatStars, escapeXml, totalsLine } from '../src/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/upstream-card.js', import.meta.url));
 const SNAP = (name) => new URL(`./snapshots/${name}`, import.meta.url);
@@ -579,4 +579,110 @@ test('in Actions the rate-limit notice is also a warning annotation; a bad token
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /GitHub API 403/);
   assert.equal(readFileSync(svg, 'utf8'), 'LAST GOOD CARD');
+});
+
+// --cache: skip the run when a one-call check says nothing changed
+const API_STUB = fileURLToPath(new URL('./fixtures/api-stub.mjs', import.meta.url));
+
+function cachedRun(dir, args, env = {}) {
+  const log = join(dir, 'calls.log');
+  const r = spawnSync('node', ['--import', API_STUB, BIN, '--user', 'octo', '--svg', join(dir, 'c.svg'), '--cache', join(dir, 'cache.json'), ...args], {
+    encoding: 'utf8', env: { PATH: process.env.PATH, GITHUB_TOKEN: 't', UC_LOG: log, ...env },
+  });
+  const calls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : [];
+  if (existsSync(log)) writeFileSync(log, '');
+  return { ...r, calls };
+}
+
+test('probe: one small search per type; the count or the newest update changing changes the result', async () => {
+  const reply = (count, updatedAt) => fakeGraphQLState(count, updatedAt);
+  const a = await probe('octo', { token: 't', fetchImpl: reply(3, '2026-11-01T00:00:00Z') });
+  assert.equal(a, await probe('octo', { token: 't', fetchImpl: reply(3, '2026-11-01T00:00:00Z') }), 'same answer, same state');
+  assert.notEqual(a, await probe('octo', { token: 't', fetchImpl: reply(4, '2026-11-01T00:00:00Z') }), 'a new merge');
+  assert.notEqual(a, await probe('octo', { token: 't', fetchImpl: reply(3, '2026-11-02T00:00:00Z') }), 'a newer update');
+  const f = reply(1, 'x');
+  await probe('octo', { token: 't', since: '2026-01-01', types: ['merged', 'reviewed'], fetchImpl: f });
+  assert.equal(f.calls.length, 2);
+  assert.ok(f.calls[0].q.includes('is:merged') && f.calls[0].q.includes('merged:>=2026-01-01') && f.calls[0].q.includes('sort:updated-desc'), f.calls[0].q);
+  assert.ok(f.calls[1].q.includes('reviewed-by:octo') && f.calls[1].q.includes('created:>=2026-01-01'), f.calls[1].q);
+  await assert.rejects(probe('octo', { fetchImpl: f }), /token is required/);
+});
+
+function fakeGraphQLState(issueCount, updatedAt) {
+  const calls = [];
+  const fn = async (url, opts) => {
+    calls.push(JSON.parse(opts.body).variables);
+    return { ok: true, status: 200, json: async () => ({ data: { search: { issueCount, nodes: [{ id: 'PR_1', updatedAt }] } } }) };
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+test('--cache: the first run saves the state; the next run with nothing changed makes one small call and touches nothing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const first = cachedRun(dir, []);
+  assert.equal(first.status, 0, first.stderr);
+  assert.deepEqual(first.calls.filter((c) => c === 'probe'), ['probe']);
+  assert.ok(first.calls.includes('graphql'));
+  assert.equal(typeof JSON.parse(readFileSync(join(dir, 'cache.json'), 'utf8')).state, 'string');
+  const card = readFileSync(join(dir, 'c.svg'), 'utf8');
+  const second = cachedRun(dir, []);
+  assert.equal(second.status, 0, second.stderr);
+  assert.deepEqual(second.calls, ['probe'], 'one small search, no full fetch');
+  assert.match(second.stderr, /nothing changed since the last run/);
+  assert.equal(readFileSync(join(dir, 'c.svg'), 'utf8'), card);
+});
+
+test('--cache: a change on GitHub, changed options, a missing output or a stale cache all mean a full run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  cachedRun(dir, []);
+  const v2 = { UC_UPDATED: '2026-11-02T00:00:00Z' };
+  assert.ok(cachedRun(dir, [], v2).calls.includes('graphql'), 'GitHub shows something new');
+  assert.deepEqual(cachedRun(dir, [], v2).calls, ['probe'], 'and the new state is saved');
+  assert.ok(cachedRun(dir, ['--top', '3'], v2).calls.includes('graphql'), 'a different --top must redraw the card');
+  assert.ok(cachedRun(dir, ['--top', '3'], v2).calls.every((c) => c === 'probe'), 'and then it is cached again');
+  rmSync(join(dir, 'c.svg'));
+  assert.ok(cachedRun(dir, ['--top', '3'], v2).calls.includes('graphql'), 'the card was deleted: rebuild it');
+  assert.ok(existsSync(join(dir, 'c.svg')));
+  const c = JSON.parse(readFileSync(join(dir, 'cache.json'), 'utf8'));
+  writeFileSync(join(dir, 'cache.json'), JSON.stringify({ ...c, refreshedAt: new Date(Date.now() - 31 * 86400e3).toISOString() }));
+  assert.ok(cachedRun(dir, ['--top', '3'], v2).calls.includes('graphql'), 'older than 30 days: refresh stars and names');
+  writeFileSync(join(dir, 'cache.json'), 'not json');
+  assert.ok(cachedRun(dir, ['--top', '3'], v2).calls.includes('graphql'), 'a broken cache file is ignored');
+});
+
+test('--cache with --types merged,reviewed: a new review alone means a full run', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const both = ['--types', 'merged,reviewed'];
+  cachedRun(dir, both);
+  assert.deepEqual(cachedRun(dir, both).calls, ['probe', 'probe'], 'one check per type');
+  assert.ok(cachedRun(dir, both, { UC_UPDATED_REVIEWED: '2026-11-03T00:00:00Z' }).calls.includes('graphql'));
+});
+
+test('--cache: a failing check falls back to a full run; a rate-limited one keeps the card; a dry run saves nothing', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const r = cachedRun(dir, [], { UC_PROBE_STATUS: '500' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /could not check for changes \(GitHub API 500: \); doing a full run/);
+  assert.ok(r.calls.includes('graphql') && existsSync(join(dir, 'c.svg')));
+  assert.ok(!existsSync(join(dir, 'cache.json')), 'no state, nothing to remember');
+  const card = readFileSync(join(dir, 'c.svg'), 'utf8');
+  const limited = cachedRun(dir, [], { UC_PROBE_STATUS: '403' });
+  assert.equal(limited.status, 0, limited.stderr);
+  assert.deepEqual(limited.calls, ['probe'], 'no full run into the same limit');
+  assert.match(limited.stderr, /rate limit reached.*keeping the existing/);
+  assert.equal(readFileSync(join(dir, 'c.svg'), 'utf8'), card);
+  const dry = cachedRun(dir, ['--dry-run']);
+  assert.equal(dry.status, 0);
+  assert.ok(!existsSync(join(dir, 'cache.json')));
+  const j = spawnSync('node', [BIN, '--from-json', join(dir, 'x.json'), '--cache', join(dir, 'cache.json')], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(j.status, 1);
+  assert.match(j.stderr, /--cache is for runs that call GitHub/);
+});
+
+test('the Action passes its cache input to --cache only when set', () => {
+  const action = readFileSync(new URL('../action.yml', import.meta.url), 'utf8');
+  assert.match(action, /\n  cache:\n/);
+  assert.match(action, /UC_CACHE: \$\{\{ inputs\.cache \}\}/);
+  assert.match(action, /\[ -n "\$UC_CACHE" \] && args\+=\(--cache "\$UC_CACHE"\)/);
 });

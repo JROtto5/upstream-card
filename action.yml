@@ -38,6 +38,9 @@ inputs:
   no-stars:
     description: "true to leave star counts off, so the card changes only when a merge does"
     default: "false"
+  cache:
+    description: "File that remembers what GitHub showed last time (restore it with actions/cache): when nothing changed, the run skips the full fetch and writes nothing. Empty to always do a full run."
+    default: ""
   dry-run:
     description: "true to print what would change and write nothing"
     default: "false"
@@ -61,6 +64,7 @@ runs:
         UC_TYPES: ${{ inputs.types }}
         UC_README: ${{ inputs.readme }}
         UC_DRY: ${{ inputs.dry-run }}
+        UC_CACHE: ${{ inputs.cache }}
         UC_NO_STARS: ${{ inputs.no-stars }}
         UC_BIN: ${{ github.action_path }}/bin/upstream-card.js
       run: |
@@ -69,6 +73,7 @@ runs:
         [ -n "$UC_SINCE" ] && args+=(--since "$UC_SINCE")
         [ -n "$UC_README" ] && args+=(--readme "$UC_README")
         [ "$UC_EXCLUDE_FORKS" = "true" ] && args+=(--exclude-forks)
+        [ -n "$UC_CACHE" ] && args+=(--cache "$UC_CACHE")
         [ "$UC_DRY" = "true" ] && args+=(--dry-run)
         [ "$UC_NO_STARS" = "true" ] && args+=(--no-stars)
         node "$UC_BIN" "${args[@]}"

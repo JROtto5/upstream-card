@@ -82,7 +82,29 @@ GITHUB_TOKEN=$(gh auth token) node bin/upstream-card.js --user <login> --svg car
 | `--readme <file>` | Put the markdown list between the `upstream-card` markers in this file |
 | `--json <file>` / `--from-json <file>` | Save the summary, or render from a saved one offline; the filters still apply |
 | `--no-stars` | Leave star counts off the card and the list |
+| `--cache <file>` | Remember what GitHub showed last time in this file; a run where nothing changed skips the full fetch (see below) |
 | `--dry-run` | Print which files would be created or updated, and write nothing |
+
+### Skipping runs when nothing changed (`--cache`)
+
+With `--cache <file>` (the Action's `cache:`) a run first asks GitHub one small question per type: how many PRs the search finds, and which one was updated last. If the answer is the same as last time, the run ends there: no full fetch, no file touched. A full run is 2 or more GraphQL calls per type (more for long histories, which are read in date windows and pages of 100), so the saving grows with your history; for a short one it is about one call. GitHub's search API sends no ETag, so this is a plain comparison, not a conditional request, and the check itself counts against the rate limit like any small query.
+
+Any new merge or review, a PR that disappears (deleted repo, repo made private) or an edited title changes the answer and gives a full run, which then saves the new state. A full run is also forced when the options changed (a different `--top` must redraw the card), when an output file is missing, when the cache is older than 30 days, and when the check itself fails. If the check is rate limited, the run keeps your last card, as described under Rate limits.
+
+The cache file changes whenever the state does, so keep it out of your commits and persist it with `actions/cache`:
+
+```yaml
+      - uses: actions/cache@v4   # or pin it to a SHA, like the action below
+        with:
+          path: .upstream-card-cache.json
+          key: upstream-card-${{ github.run_id }}
+          restore-keys: upstream-card-
+      - uses: JROtto5/upstream-card@f704bff676ba802867308f3a1abd67850c09cc6e
+        with:
+          cache: .upstream-card-cache.json
+```
+
+The trade-off: a star count or a repo rename shows up only on the next full run (at most 30 days away), and the `git add -A` in the example workflow would commit the cache file, so add it to `.gitignore` there. It isn't needed with the default weekly schedule; it's for runs more often than that.
 
 ## What counts
 
@@ -118,7 +140,7 @@ npm test   # node --test, no dependencies; uses xmllint when it's installed
 UPDATE_SNAPSHOTS=1 npm test   # after an intended change to the card's look
 ```
 
-The tests cover the npm `bin` symlink, pagination past 100 results and date-window splitting past 1,000; private, deleted and renamed repositories; hostile repository names and titles (escaped, checked with xmllint); a second run changing nothing; a missing token; `--since` boundaries; rate limits (the last card is kept, byte for byte), and snapshots of all three themes.
+The tests cover the npm `bin` symlink, pagination past 100 results and date-window splitting past 1,000; private, deleted and renamed repositories; hostile repository names and titles (escaped, checked with xmllint); a second run changing nothing; a missing token; `--since` boundaries; rate limits (the last card is kept, byte for byte); the `--cache` check (nothing changed means one call per type and no writes), and snapshots of all three themes.
 
 The code was reviewed with [crucible](https://github.com/JROtto5/crucible), an evidence-first AI code reviewer, before each release.
 

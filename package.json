@@ -1,6 +1,6 @@
 {
   "name": "upstream-card",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Show the pull requests you got merged into other people's projects: an SVG card and a markdown list for your GitHub profile README. Zero dependencies.",
   "type": "module",
   "bin": { "upstream-card": "bin/upstream-card.js" },

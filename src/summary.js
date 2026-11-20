@@ -16,8 +16,9 @@ export const kindOf = (pr) => pr.kind ?? 'merged';
 // The date a PR is shown and sorted by: merge date, or for a reviewed PR the day it was opened.
 export const dateOf = (pr) => String(kindOf(pr) === 'reviewed' ? pr.createdAt : pr.mergedAt);
 
-export function summarize(prs, { exclude = [], minStars = 0, excludeForks = false, top = 6, since = null, types = ['merged'] } = {}) {
+export function summarize(prs, { exclude = [], minStars = 0, excludeForks = false, top = 6, since = null, truncated = false, types = ['merged'] } = {}) {
   types = checkTypes(types);
+  truncated = truncated === true || prs?.truncated === true; // fetchPRs marks a cut fetch on the array
   const skip = exclude.map((s) => s.toLowerCase());
   const excluded = (pr) => {
     const r = pr.repo.toLowerCase();
@@ -62,6 +63,8 @@ export function summarize(prs, { exclude = [], minStars = 0, excludeForks = fals
   return {
     // With --since the oldest PR in view isn't necessarily your first there, so no first-contribution badges.
     since,
+    // Same for a fetch that left the oldest PRs out (`max`, or a day over the search cap).
+    ...(truncated ? { truncated: true } : {}),
     types: TYPES.filter((t) => types.includes(t)),
     totalMerged: projects.reduce((n, p) => n + p.merged, 0),
     totalReviewed: projects.reduce((n, p) => n + p.reviewed, 0),

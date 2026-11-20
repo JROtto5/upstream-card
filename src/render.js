@@ -105,7 +105,7 @@ export function renderMarkdown(summary, { perProject = 3, stars = true } = {}) {
     const meta = [p.language, stars && `★ ${formatStars(p.stars)}`].filter(Boolean).join(' · ');
     const counts = [p.merged && `${p.merged} merged`, p.reviewed && `${p.reviewed} reviewed`].filter(Boolean).join(', ');
     out.push(`- **[${p.repo}](https://github.com/${p.repo})** (${meta}): ${counts}`);
-    const badges = !summary.since && p.firstPr !== undefined; // see summarize: no badges for a --since slice
+    const badges = !summary.since && !summary.truncated && p.firstPr !== undefined; // see summarize: no badges for a --since slice or a cut fetch
     const isFirst = (pr) => kindOf(pr) === 'merged' && pr.number === p.firstPr;
     const shown = p.prs.slice(0, perProject);
     for (const pr of shown) {

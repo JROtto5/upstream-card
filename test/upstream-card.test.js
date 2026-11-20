@@ -267,6 +267,36 @@ test('when max is reached the newest PRs are kept and a warning says so', async 
   assert.match(warnings.join(), /stopped at 4 merged PRs; older ones are left out/);
 });
 
+test('a fetch cut by max or by a day over the search cap shows no first-contribution badges (#14)', async () => {
+  const r = repo('acme/widgets');
+  const f = fakeGraphQL({
+    count: (q) => (q.includes('2008-01-01..2026-11-18') ? 2000 : 3),
+    pages: (q) => ({ nodes: q.includes('..2026-11-18') && !q.includes('2008-01-01') ? [pr(10, r, '2026-11-10T00:00:00Z'), pr(11, r, '2026-11-11T00:00:00Z'), pr(12, r, '2026-11-12T00:00:00Z')] : [pr(1, r, '2010-01-01T00:00:00Z'), pr(2, r, '2010-01-02T00:00:00Z'), pr(3, r, '2010-01-03T00:00:00Z')] }),
+  });
+  const warn = () => {};
+  // Cut at 3: only the newest window is left, so PR 10 would wrongly be called the first.
+  const cut = await fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW, max: 3, warn });
+  assert.equal(cut.truncated, true);
+  const s = summarize(cut);
+  assert.equal(s.truncated, true);
+  assert.ok(!renderMarkdown(s).includes('first contribution'), 'no badge on PR 10');
+  const full = await fetchPRs('octo', { token: 't', fetchImpl: f, now: NOW, warn });
+  assert.equal(full.truncated, false);
+  assert.equal(summarize(full).truncated, undefined);
+  assert.match(renderMarkdown(summarize(full)), /first contribution/);
+  // A single day over the cap is incomplete too.
+  const g = fakeGraphQL({ count: (q) => (q.includes('..2026-11-18') ? 1500 : 3), pages: () => ({ nodes: [pr(5, r, '2026-11-18T00:00:00Z')] }) });
+  const day = await fetchMergedPRs('octo', { token: 't', fetchImpl: g, now: NOW, warn });
+  assert.equal(day.truncated, true);
+  // The flag survives --json / --from-json.
+  const dir = mkdtempSync(join(tmpdir(), 'uc-'));
+  const json = join(dir, 's.json');
+  writeFileSync(json, JSON.stringify(s));
+  const out = spawnSync('node', [BIN, '--from-json', json, '--svg', join(dir, 'c.svg'), '--md', join(dir, 'u.md')], { encoding: 'utf8' });
+  assert.equal(out.status, 0, out.stderr);
+  assert.ok(!readFileSync(join(dir, 'u.md'), 'utf8').includes('first contribution'), 'a cut summary stays badge-free offline');
+});
+
 test('a single day over the search cap is reported, not silently cut', async () => {
   const f = fakeGraphQL({ count: () => 1500, pages: () => ({ nodes: [] }) });
   const warnings = [];

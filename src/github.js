@@ -114,6 +114,7 @@ export async function windows(user, from, to, opts) {
   if (search.issueCount <= SEARCH_CAP) return [[from, to]];
   if (from === to) {
     (opts.warn || console.error)(`upstream-card: ${search.issueCount} ${opts.type || 'merged'} PRs on ${from} alone; GitHub search returns at most ${SEARCH_CAP}, so that day is incomplete`);
+    opts.incomplete = true;
     return [[from, to]];
   }
   const a = new Date(`${from}T00:00:00Z`).getTime();
@@ -124,7 +125,8 @@ export async function windows(user, from, to, opts) {
 }
 
 // -> [{ repo, repoId, number, title, url, mergedAt, stars, language, owner, fork }]
-// Windows are read newest first, so if `max` is reached it's the oldest PRs that are left out (with a warning).
+// Windows are read newest first, so if `max` is reached it's the oldest PRs that are left out (with a warning,
+// and `prs.truncated` set).
 export function fetchMergedPRs(user, opts = {}) {
   return fetchKind(user, 'merged', opts);
 }
@@ -133,8 +135,13 @@ export function fetchMergedPRs(user, opts = {}) {
 // instead of mergedAt; `max` applies to each type on its own.
 export async function fetchPRs(user, { types = ['merged'], ...opts } = {}) {
   const out = [];
-  for (const type of checkTypes(types)) out.push(...(await fetchKind(user, type, opts)));
-  return out;
+  let truncated = false;
+  for (const type of checkTypes(types)) {
+    const got = await fetchKind(user, type, opts);
+    out.push(...got);
+    truncated ||= got.truncated;
+  }
+  return markTruncated(out, truncated);
 }
 
 async function fetchKind(user, type, { token, since, max = 5000, fetchImpl = fetch, now = new Date(), warn = console.error } = {}) {
@@ -177,5 +184,12 @@ async function fetchKind(user, type, { token, since, max = 5000, fetchImpl = fet
     if (truncated) break;
   }
   if (truncated) warn(`upstream-card: stopped at ${max} ${type} PRs; older ones are left out`);
-  return out;
+  return markTruncated(out, truncated || !!opts.incomplete);
+}
+
+// `prs.truncated` is true when some PRs were left out (`max` reached, or a day over the search cap),
+// so the oldest PR in view may not be the first. Non-enumerable: the array still compares and
+// serializes as before.
+function markTruncated(prs, truncated) {
+  return Object.defineProperty(prs, 'truncated', { value: !!truncated, enumerable: false });
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.1 (2026-11-20)
+
 - Library: `fetchPRs`, `probe` and `summarize` check `types` the way the CLI does. A repeated type is fetched and counted once (it was counted twice), and an unknown type or a string throws a `TypeError` (an unknown type used to come back as merged PRs) (#15).
 - No 🌱 first-contribution badges when the fetch left the oldest PRs out (`max` reached, or one day over GitHub's 1,000-result search cap): the oldest PR in view may not be the first. `fetchPRs` / `fetchMergedPRs` mark this as `prs.truncated`, and the summary carries `truncated: true` through `--json` / `--from-json` (#14).
 

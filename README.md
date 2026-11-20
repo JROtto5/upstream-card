@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: JROtto5/upstream-card@fd569dc5cf5bbfc90403a9efed5790dc3a655018 # v0.2.0
+      - uses: JROtto5/upstream-card@284a5f5e74ebacdb6b5d57e95325559f0f920eaf # v0.2.1
         with:
           theme: auto            # follows the viewer's light/dark setting; or dark / light
           top: 6                 # projects on the card
@@ -99,7 +99,7 @@ The cache file changes whenever the state does, so keep it out of your commits a
           path: .upstream-card-cache.json
           key: upstream-card-${{ github.run_id }}
           restore-keys: upstream-card-
-      - uses: JROtto5/upstream-card@fd569dc5cf5bbfc90403a9efed5790dc3a655018
+      - uses: JROtto5/upstream-card@284a5f5e74ebacdb6b5d57e95325559f0f920eaf
         with:
           cache: .upstream-card-cache.json
 ```

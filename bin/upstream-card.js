@@ -74,7 +74,7 @@ function loadSaved(file) {
   if (!Array.isArray(data?.allProjects) || !data.allProjects.every((p) => Array.isArray(p?.prs) && p.prs.every((x) => typeof x?.repo === 'string'))) {
     throw new Error(`${file}: not an upstream-card summary (write one with --json)`);
   }
-  return { prs: data.allProjects.flatMap((p) => p.prs), user: data.user, since: data.since || null };
+  return { prs: data.allProjects.flatMap((p) => p.prs), user: data.user, since: data.since || null, truncated: data.truncated === true };
 }
 
 const CACHE_MAX_AGE_MS = 30 * 86400e3; // star counts and renames only show up on a full run, so force one this often
@@ -145,8 +145,9 @@ async function main() {
   let prs;
   let savedUser;
   let savedSince = null;
+  let savedTruncated = false;
   if (a['from-json']) {
-    ({ prs, user: savedUser, since: savedSince } = loadSaved(a['from-json']));
+    ({ prs, user: savedUser, since: savedSince, truncated: savedTruncated } = loadSaved(a['from-json']));
   } else {
     const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
     try {
@@ -156,7 +157,7 @@ async function main() {
       throw e;
     }
   }
-  const summary = summarize(prs, { exclude, minStars, excludeForks: !!a['exclude-forks'], top, types, since: a.since || savedSince });
+  const summary = summarize(prs, { exclude, minStars, excludeForks: !!a['exclude-forks'], top, types, since: a.since || savedSince, truncated: !!prs.truncated || savedTruncated });
   const user = a.user || savedUser || '';
   summary.user = user;
   const dry = !!a['dry-run'];
